@@ -57,7 +57,7 @@ sugerido é `canary-report-AAAA-MM-DD.<extensão>`, na raiz do workspace.
 
 | Formato | Indicado para | Conteúdo |
 |---|---|---|
-| **Markdown** | PRs, issues, documentação | Resumo por severidade, tabela de pacotes com a versão recomendada e tabela detalhada das vulnerabilidades |
+| **Markdown** (em inglês) | PRs, issues, documentação | Resumo por severidade, tabela de pacotes com a versão recomendada e tabela detalhada das vulnerabilidades |
 | **CSV** | Excel, Google Sheets, LibreOffice | Uma linha por vulnerabilidade, em UTF-8 com BOM (acentos corretos no Excel) |
 | **JSON** | CI e outras ferramentas | Resumo (totais e contagem por severidade) e a lista completa de vulnerabilidades |
 

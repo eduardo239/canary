@@ -96,18 +96,21 @@ export function renderReport(format: ReportFormat, findings: Finding[], meta: Re
   }
 }
 
+/** Rótulos do relatório em Markdown (em inglês). */
 const SEVERITY_LABEL: Record<Severity, string> = {
-  CRITICAL: 'Crítica',
-  HIGH: 'Alta',
-  MODERATE: 'Média',
-  LOW: 'Baixa',
-  UNKNOWN: 'Desconhecida',
+  CRITICAL: 'Critical',
+  HIGH: 'High',
+  MODERATE: 'Medium',
+  LOW: 'Low',
+  UNKNOWN: 'Unknown',
 };
+
+const TYPE_LABEL = (d: { direct: boolean; dev: boolean }) => (d.direct ? (d.dev ? 'dev' : 'direct') : 'transitive');
 
 const CVE = (aliases: string[]) => aliases.filter((a) => a.startsWith('CVE-'));
 
 // ---------------------------------------------------------------------------
-// Markdown
+// Markdown (em inglês, para compartilhar em PRs e issues)
 // ---------------------------------------------------------------------------
 
 function toMarkdown(rows: ReportRow[], findings: Finding[], meta: ReportMeta): string {
@@ -115,22 +118,22 @@ function toMarkdown(rows: ReportRow[], findings: Finding[], meta: ReportMeta): s
   const cell = (s: string) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').trim();
   const out: string[] = [];
 
-  out.push('# Relatório de vulnerabilidades — Canary', '');
+  out.push('# Vulnerability Report — Canary', '');
   out.push(`- **Workspace:** ${cell(meta.workspace)}`);
-  out.push(`- **Gerado em:** ${formatDate(meta.generatedAt)}`);
-  out.push(`- **Dependências analisadas:** ${meta.dependenciesScanned}` + (meta.ignored ? ` (${meta.ignored} ignoradas)` : ''));
-  out.push(`- **Pacotes vulneráveis:** ${findings.length}`);
-  out.push(`- **Vulnerabilidades:** ${rows.length}`);
-  out.push('- **Fonte:** [OSV.dev](https://osv.dev)', '');
+  out.push(`- **Generated:** ${formatDate(meta.generatedAt)}`);
+  out.push(`- **Dependencies scanned:** ${meta.dependenciesScanned}` + (meta.ignored ? ` (${meta.ignored} ignored)` : ''));
+  out.push(`- **Vulnerable packages:** ${findings.length}`);
+  out.push(`- **Vulnerabilities:** ${rows.length}`);
+  out.push('- **Source:** [OSV.dev](https://osv.dev)', '');
 
-  out.push('## Resumo por severidade', '');
-  out.push('| Severidade | Quantidade |', '|---|---:|');
+  out.push('## Summary by severity', '');
+  out.push('| Severity | Count |', '|---|---:|');
   (Object.keys(counts) as Severity[]).filter((s) => counts[s]).forEach((s) => out.push(`| ${SEVERITY_LABEL[s]} | ${counts[s]} |`));
   out.push('');
 
   // um pacote por linha: o que fazer
-  out.push('## Pacotes e correções recomendadas', '');
-  out.push('| Pacote | Versão atual | Atualizar para | Pior severidade | Vulnerabilidades | Tipo | Local |');
+  out.push('## Packages and recommended upgrades', '');
+  out.push('| Package | Current version | Upgrade to | Highest severity | Vulnerabilities | Type | Location |');
   out.push('|---|---|---|---|---:|---|---|');
   const packages = [...findings].sort(
     (a, b) =>
@@ -141,17 +144,17 @@ function toMarkdown(rows: ReportRow[], findings: Finding[], meta: ReportMeta): s
     const rec = recommendedVersion(f);
     const unfixed = f.vulnerabilities.filter((v) => !v.fixedVersion).length;
     out.push(
-      `| \`${cell(d.name)}\` (${d.manager}) | ${cell(d.version)}${d.approximate ? ' ⚠️ estimada' : ''} | ` +
-        `${rec ? `**${cell(rec)}**` : 'sem correção'}${rec && unfixed ? ` (${unfixed} sem correção)` : ''} | ` +
+      `| \`${cell(d.name)}\` (${d.manager}) | ${cell(d.version)}${d.approximate ? ' ⚠️ estimated' : ''} | ` +
+        `${rec ? `**${cell(rec)}**` : 'no fix available'}${rec && unfixed ? ` (${unfixed} without fix)` : ''} | ` +
         `${SEVERITY_LABEL[worst(f)]} | ${f.vulnerabilities.length} | ` +
-        `${d.direct ? (d.dev ? 'dev' : 'direta') : 'transitiva'} | \`${cell(meta.relativePath(d.location.file))}:${d.location.line + 1}\` |`,
+        `${TYPE_LABEL(d)} | \`${cell(meta.relativePath(d.location.file))}:${d.location.line + 1}\` |`,
     );
   }
   out.push('');
 
   // uma vulnerabilidade por linha: detalhes
-  out.push('## Vulnerabilidades', '');
-  out.push('| Severidade | ID | CVE | Pacote | Versão atual | Corrigida em | Resumo |');
+  out.push('## Vulnerabilities', '');
+  out.push('| Severity | ID | CVE | Package | Current version | Fixed in | Summary |');
   out.push('|---|---|---|---|---|---|---|');
   for (const r of rows) {
     out.push(
@@ -161,8 +164,10 @@ function toMarkdown(rows: ReportRow[], findings: Finding[], meta: ReportMeta): s
   }
   out.push('');
   out.push(
-    '> A ausência de uma vulnerabilidade neste relatório não garante que ela não exista: ' +
-      'o Canary só conhece o que está catalogado na OSV.dev.',
+    '> Packages marked as ⚠️ *estimated* have no lockfile; their version was inferred from the declared range.',
+    '>',
+    '> The absence of a vulnerability in this report does not guarantee it does not exist: ' +
+      'Canary only knows what is catalogued in OSV.dev.',
     '',
   );
   return out.join('\n');
