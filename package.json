@@ -1,6 +1,6 @@
 {
-  "name": "canary",
-  "displayName": "Canary",
+  "name": "canary9",
+  "displayName": "Canary9",
   "description": "Alerta precoce de vulnerabilidades: analisa as dependências do workspace (npm, pnpm, pip e uv) usando a base OSV.dev.",
   "version": "0.1.0",
   "publisher": "eduardo239",
