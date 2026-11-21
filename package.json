@@ -4,6 +4,14 @@
   "description": "Alerta precoce de vulnerabilidades: analisa as dependências do workspace (npm, pnpm, pip e uv) usando a base OSV.dev.",
   "version": "0.1.0",
   "publisher": "local",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eduardo239/canary.git"
+  },
+  "homepage": "https://github.com/eduardo239/canary#readme",
+  "bugs": {
+    "url": "https://github.com/eduardo239/canary/issues"
+  },
   "license": "MIT",
   "icon": "media/icon.png",
   "engines": {

@@ -37,6 +37,8 @@ pelo `pyproject.toml`, com versões aproximadas.
   - abre a página do advisory.
 - **Painel lateral** (ícone do canário na barra de atividades, à esquerda): pacotes vulneráveis ordenados por severidade,
   com as vulnerabilidades de cada um.
+- **Contador na barra de atividades:** o ícone do canário mostra quantos pacotes têm vulnerabilidades;
+  o tooltip traz também o total de vulnerabilidades. Sem achados, o contador some.
 - **Barra de status:** total de vulnerabilidades, com cor de alerta conforme a pior severidade.
 - **Verificação automática** ao abrir o workspace e sempre que um manifesto ou lockfile muda, inclusive
   depois de `npm install`, `pnpm install` ou `uv lock`.

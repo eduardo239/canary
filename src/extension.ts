@@ -14,6 +14,7 @@ const SOURCE = 'canary';
 
 let diagnostics: vscode.DiagnosticCollection;
 let tree: FindingsTreeProvider;
+let treeView: vscode.TreeView<unknown>;
 let status: vscode.StatusBarItem;
 let output: vscode.OutputChannel;
 const osv = new OsvClient();
@@ -27,6 +28,7 @@ let rescanRequested = false;
 export function activate(context: vscode.ExtensionContext): void {
   diagnostics = vscode.languages.createDiagnosticCollection(SOURCE);
   tree = new FindingsTreeProvider();
+  treeView = vscode.window.createTreeView('canary.results', { treeDataProvider: tree, showCollapseAll: true });
   output = vscode.window.createOutputChannel('Canary');
   status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.command = 'canary.results.focus';
@@ -37,7 +39,7 @@ export function activate(context: vscode.ExtensionContext): void {
     diagnostics,
     output,
     status,
-    vscode.window.registerTreeDataProvider('canary.results', tree),
+    treeView,
     vscode.commands.registerCommand('canary.scan', () => runScan(true)),
     vscode.commands.registerCommand('canary.clear', clearResults),
     vscode.commands.registerCommand('canary.openAdvisory', (url: string) => vscode.env.openExternal(vscode.Uri.parse(url))),
@@ -235,6 +237,7 @@ function publish(findings: Finding[]): void {
   }
 
   tree.update(findings);
+  updateBadge(findings);
 
   const total = findings.reduce((n, f) => n + f.vulnerabilities.length, 0);
   if (!total) {
@@ -256,8 +259,28 @@ function clearResults(): void {
   diagnostics.clear();
   findingsByLine.clear();
   tree.update([]);
+  updateBadge([]);
   status.backgroundColor = undefined;
   setStatus('$(shield) Canary', 'Clique para ver as vulnerabilidades');
+}
+
+/**
+ * Contador sobre o ícone do Canary na barra de atividades: quantidade de pacotes vulneráveis
+ * (as mesmas entradas do painel). Sem valor, o VS Code esconde o contador.
+ */
+function updateBadge(findings: Finding[]): void {
+  const packages = findings.length;
+  if (!packages) {
+    treeView.badge = undefined;
+    return;
+  }
+  const vulns = findings.reduce((n, f) => n + f.vulnerabilities.length, 0);
+  treeView.badge = {
+    value: packages,
+    tooltip:
+      `${packages} pacote${packages > 1 ? 's' : ''} com vulnerabilidades ` +
+      `(${vulns} vulnerabilidade${vulns > 1 ? 's' : ''} no total)`,
+  };
 }
 
 function setStatus(text: string, tooltip: string): void {

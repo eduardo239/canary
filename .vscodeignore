@@ -6,3 +6,4 @@ node_modules/**
 tsconfig.json
 sample-workspace/**
 media/canary-icon.jpg
+.gitignore
