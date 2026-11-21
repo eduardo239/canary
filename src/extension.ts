@@ -1,6 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { describeError } from './net';
 import { OsvClient } from './osv';
 import { parseNpmProject } from './parsers/npm';
 import { parsePnpmProject } from './parsers/pnpm';
@@ -19,7 +20,7 @@ let tree: FindingsTreeProvider;
 let treeView: vscode.TreeView<unknown>;
 let status: vscode.StatusBarItem;
 let output: vscode.OutputChannel;
-const osv = new OsvClient();
+let osv: OsvClient;
 
 /** Achados indexados por "arquivo|linha", usados pelo Quick Fix. */
 const findingsByLine = new Map<string, Finding>();
@@ -29,6 +30,11 @@ let lastScan: { findings: Finding[]; dependencies: number; ignored: number; at: 
 /** Para notificar verificações automáticas só quando surgirem pacotes vulneráveis novos. */
 let notifiedKeys = new Set<string>();
 
+/** Novas tentativas automáticas quando uma verificação automática falha por rede. */
+const AUTO_RETRY_DELAYS_MS = [15_000, 60_000, 180_000];
+let autoRetryCount = 0;
+let autoRetryTimer: NodeJS.Timeout | undefined;
+
 let scanning = false;
 let rescanRequested = false;
 
@@ -37,6 +43,7 @@ export function activate(context: vscode.ExtensionContext): void {
   tree = new FindingsTreeProvider();
   treeView = vscode.window.createTreeView('canary.results', { treeDataProvider: tree, showCollapseAll: true });
   output = vscode.window.createOutputChannel('Canary');
+  osv = new OsvClient((message) => output.appendLine(message));
   status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.command = 'canary.results.focus';
   setStatus('$(shield) Canary', 'Clique para ver as vulnerabilidades');
@@ -79,7 +86,7 @@ export function activate(context: vscode.ExtensionContext): void {
   watcher.onDidChange(onChange);
   watcher.onDidCreate(onChange);
   watcher.onDidDelete(onChange);
-  context.subscriptions.push(watcher, { dispose: () => clearTimeout(timer) });
+  context.subscriptions.push(watcher, { dispose: () => (clearTimeout(timer), clearTimeout(autoRetryTimer)) });
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
@@ -145,17 +152,30 @@ async function runScan(manual: boolean): Promise<void> {
       },
     );
     if (result) {
+      clearTimeout(autoRetryTimer);
+      autoRetryCount = 0;
+      status.command = 'canary.results.focus';
       notifyResult(result.findings, result.total, result.dependencies, manual);
     }
   } catch (err: any) {
     if (err?.name === 'AbortError') {
       return;
     }
-    const msg = err?.message ?? String(err);
-    output.appendLine(`[erro] ${msg}`);
-    setStatus('$(shield) Canary: erro', msg);
+    const msg = describeError(err);
+    output.appendLine(`[erro] verificação falhou: ${msg}`);
+    // mantém os resultados anteriores (se houver) e indica o problema na barra de status
+    setStatus('$(warning) Canary: sem conexão', `${msg}\n\nClique para verificar de novo.`);
+    status.command = 'canary.scan';
     if (manual) {
-      void vscode.window.showErrorMessage(`Canary: falha na verificação — ${msg}`);
+      void vscode.window.showErrorMessage(`Canary: falha na verificação — ${msg}`, 'Tentar novamente', 'Ver log').then((choice) => {
+        if (choice === 'Tentar novamente') {
+          void runScan(true);
+        } else if (choice === 'Ver log') {
+          output.show(true);
+        }
+      });
+    } else {
+      scheduleAutoRetry();
     }
   } finally {
     scanning = false;
@@ -164,6 +184,19 @@ async function runScan(manual: boolean): Promise<void> {
       void runScan(false);
     }
   }
+}
+
+/** Verificação automática falhou: tenta de novo em silêncio, com intervalos crescentes. */
+function scheduleAutoRetry(): void {
+  clearTimeout(autoRetryTimer);
+  const delay = AUTO_RETRY_DELAYS_MS[autoRetryCount];
+  if (delay === undefined) {
+    output.appendLine('[erro] novas tentativas automáticas esgotadas; use "Canary: Verificar vulnerabilidades".');
+    return;
+  }
+  autoRetryCount++;
+  output.appendLine(`[info] nova verificação automática em ${delay / 1000}s`);
+  autoRetryTimer = setTimeout(() => void runScan(false), delay);
 }
 
 async function collectDependencies(): Promise<Dependency[]> {
@@ -286,6 +319,7 @@ function clearResults(): void {
   lastScan = undefined;
   notifiedKeys = new Set();
   void vscode.commands.executeCommand('setContext', 'canary.hasFindings', false);
+  status.command = 'canary.results.focus';
   status.backgroundColor = undefined;
   setStatus('$(shield) Canary', 'Clique para ver as vulnerabilidades');
 }

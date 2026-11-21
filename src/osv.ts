@@ -1,12 +1,15 @@
 import { normalizePyName } from './parsers/python';
 import { Dependency, Ecosystem, Finding, Severity, SEVERITY_ORDER, Vulnerability } from './types';
 import { compareVersions } from './version';
+import { describeError, HttpError, isUserAbort, withRetry } from './net';
 import { isSafeVersion } from './security';
 
 const API = 'https://api.osv.dev/v1';
 const BATCH_SIZE = 500;
 const DETAIL_CONCURRENCY = 8;
 const TIMEOUT_MS = 30_000;
+const RETRY_ATTEMPTS = 4; // 1 tentativa + 3 novas (esperas de ~1s, 2s, 4s)
+const RETRY_BASE_MS = 1_000;
 
 interface OsvVuln {
   id: string;
@@ -27,6 +30,9 @@ interface OsvVuln {
 /** Cliente da API OSV.dev (https://google.github.io/osv.dev/api/). Mantém cache dos detalhes. */
 export class OsvClient {
   private readonly cache = new Map<string, OsvVuln>();
+
+  /** Recebe avisos de novas tentativas e falhas parciais (para o log da extensão). */
+  constructor(private readonly log: (message: string) => void = () => {}) {}
 
   async scan(deps: Dependency[], signal?: AbortSignal): Promise<Finding[]> {
     // agrupa dependências iguais para não repetir consultas
@@ -69,9 +75,19 @@ export class OsvClient {
         }
       }
     }
+    // falha nos detalhes de uma vulnerabilidade não derruba a verificação inteira
+    const missing = new Set<string>();
     await mapLimit([...toFetch], DETAIL_CONCURRENCY, async (id) => {
-      const vuln = await this.request<OsvVuln>(`/vulns/${encodeURIComponent(id)}`, { method: 'GET' }, signal);
-      this.cache.set(id, vuln);
+      try {
+        const vuln = await this.request<OsvVuln>(`/vulns/${encodeURIComponent(id)}`, { method: 'GET' }, signal);
+        this.cache.set(id, vuln);
+      } catch (err) {
+        if (isUserAbort(err, signal)) {
+          throw err;
+        }
+        missing.add(id);
+        this.log(`[aviso] detalhes de ${id} indisponíveis: ${describeError(err)}`);
+      }
     });
 
     const findings: Finding[] = [];
@@ -79,7 +95,7 @@ export class OsvClient {
       const sample = groups.get(key)![0];
       const vulns = dedupe(
         list
-          .map((v) => this.cache.get(v.id))
+          .map((v) => this.cache.get(v.id) ?? (missing.has(v.id) ? placeholder(v.id) : undefined))
           .filter((v): v is OsvVuln => !!v)
           .map((v) => toVulnerability(v, sample.name, sample.ecosystem, sample.version)),
       );
@@ -90,18 +106,34 @@ export class OsvClient {
     return findings;
   }
 
-  private async request<T>(path: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
-    const timeout = AbortSignal.timeout(TIMEOUT_MS);
-    const res = await fetch(API + path, {
-      ...init,
-      headers: { 'Content-Type': 'application/json', 'User-Agent': 'canary-vscode' },
-      signal: signal ? anySignal([signal, timeout]) : timeout,
-    });
-    if (!res.ok) {
-      throw new Error(`OSV.dev respondeu ${res.status} ${res.statusText} em ${path}`);
-    }
-    return (await res.json()) as T;
+  private request<T>(path: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
+    return withRetry(
+      async () => {
+        const timeout = AbortSignal.timeout(TIMEOUT_MS);
+        const res = await fetch(API + path, {
+          ...init,
+          headers: { 'Content-Type': 'application/json', 'User-Agent': 'canary-vscode' },
+          signal: signal ? anySignal([signal, timeout]) : timeout,
+        });
+        if (!res.ok) {
+          throw new HttpError(res.status, `OSV.dev respondeu ${res.status} ${res.statusText} em ${path}`);
+        }
+        return (await res.json()) as T;
+      },
+      {
+        attempts: RETRY_ATTEMPTS,
+        baseDelayMs: RETRY_BASE_MS,
+        signal,
+        onRetry: (attempt, delay, err) =>
+          this.log(`[rede] ${path}: ${describeError(err)} — nova tentativa ${attempt + 1}/${RETRY_ATTEMPTS} em ${(delay / 1000).toFixed(1)}s`),
+      },
+    );
   }
+}
+
+/** Vulnerabilidade cujos detalhes não puderam ser obtidos: mantém o alerta, sem severidade nem correção. */
+function placeholder(id: string): OsvVuln {
+  return { id, summary: 'Detalhes indisponíveis (falha de rede ao consultar a OSV.dev); verifique de novo mais tarde.' };
 }
 
 function toVulnerability(v: OsvVuln, name: string, ecosystem: Ecosystem, version: string): Vulnerability {

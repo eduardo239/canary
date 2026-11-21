@@ -194,6 +194,7 @@ src/
   extension.ts       ativação, comandos, alertas, Quick Fix, barra de status
   tree.ts            painel lateral
   osv.ts             cliente da OSV.dev (consulta em lote e detalhes, com cache)
+  net.ts             novas tentativas para falhas de rede e mensagens de erro legíveis
   parsers/npm.ts     package.json e package-lock.json
   parsers/pnpm.ts    pnpm-lock.yaml
   parsers/uv.ts      pyproject.toml e uv.lock
@@ -218,6 +219,30 @@ sem o `</>`.
 
 Os parsers não dependem da API do VS Code e não usam bibliotecas externas. Eles leem os arquivos linha
 a linha para guardar a posição exata de cada dependência, que é usada pelos alertas e pelo Quick Fix.
+
+## Solução de problemas
+
+**"Canary: falha na verificação"** ou **"sem conexão"** na barra de status
+
+O Canary precisa acessar `https://api.osv.dev`. Logo ao abrir o VS Code (principalmente no WSL) ou logo após
+instalar a extensão, a rede pode ainda não estar pronta. Para isso:
+
+- cada requisição é repetida até 4 vezes, com esperas crescentes (cerca de 1s, 2s e 4s), em falhas passageiras
+  (DNS, conexão interrompida, tempo esgotado, HTTP 429 e 5xx);
+- se uma verificação automática ainda assim falhar, ela é repetida sozinha depois de 15s, 1min e 3min;
+- os resultados da verificação anterior continuam visíveis, e clicar na barra de status força uma nova verificação;
+- se só os detalhes de uma vulnerabilidade falharem, ela aparece como "Detalhes indisponíveis" em vez de a
+  verificação inteira falhar.
+
+O motivo real aparece na mensagem de erro e no canal **Canary** do painel *Output*:
+
+| Mensagem | Causa provável |
+|---|---|
+| não foi possível resolver api.osv.dev (DNS) | sem internet, rede ainda iniciando ou DNS do WSL |
+| tempo esgotado / conexão interrompida | rede instável ou lenta |
+| conexão recusada | firewall ou proxy bloqueando |
+| certificado TLS inválido | proxy corporativo inspecionando HTTPS; configure o certificado da empresa no sistema ou em `NODE_EXTRA_CA_CERTS` |
+| HTTP 429 | muitas requisições em pouco tempo; aguarde alguns instantes |
 
 ## Limitações conhecidas
 
