@@ -203,4 +203,4 @@ a linha para guardar a posição exata de cada dependência, que é usada pelos 
 
 ## Licença
 
-MIT
+[MIT](LICENSE.md) © 2026 eduardo239
