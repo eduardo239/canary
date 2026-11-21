@@ -1,0 +1,141 @@
+{
+  "name": "ext-scan",
+  "displayName": "Ext Scan – Vulnerabilidades em Dependências",
+  "description": "Analisa as dependências do workspace (npm, pip e uv) e aponta vulnerabilidades conhecidas usando a base OSV.dev.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "security",
+    "vulnerability",
+    "osv",
+    "npm",
+    "python",
+    "cve",
+    "uv"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "workspaceContains:**/package.json",
+    "workspaceContains:**/requirements*.txt",
+    "workspaceContains:**/pyproject.toml",
+    "workspaceContains:**/uv.lock"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "extScan.scan",
+        "title": "Verificar vulnerabilidades",
+        "category": "Ext Scan",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "extScan.clear",
+        "title": "Limpar resultados",
+        "category": "Ext Scan",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "extScan.openAdvisory",
+        "title": "Abrir advisory",
+        "category": "Ext Scan"
+      },
+      {
+        "command": "extScan.runInTerminal",
+        "title": "Executar comando de correção",
+        "category": "Ext Scan"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "extScan.openAdvisory",
+          "when": "false"
+        },
+        {
+          "command": "extScan.runInTerminal",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "extScan.scan",
+          "when": "view == extScan.results",
+          "group": "navigation@1"
+        },
+        {
+          "command": "extScan.clear",
+          "when": "view == extScan.results",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "extScan",
+          "title": "Ext Scan",
+          "icon": "media/shield.svg"
+        }
+      ]
+    },
+    "views": {
+      "extScan": [
+        {
+          "id": "extScan.results",
+          "name": "Vulnerabilidades"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "extScan.results",
+        "contents": "Nenhuma vulnerabilidade encontrada (ou nenhuma verificação feita ainda).\n[Verificar agora](command:extScan.scan)"
+      }
+    ],
+    "configuration": {
+      "title": "Ext Scan",
+      "properties": {
+        "extScan.scanOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Verifica o workspace automaticamente ao abrir."
+        },
+        "extScan.scanOnChange": {
+          "type": "boolean",
+          "default": true,
+          "description": "Verifica novamente quando package.json, package-lock.json, requirements*.txt, pyproject.toml ou uv.lock mudam."
+        },
+        "extScan.includeDevDependencies": {
+          "type": "boolean",
+          "default": true,
+          "description": "Inclui dependências de desenvolvimento (devDependencies do npm, [dependency-groups] e tool.uv.dev-dependencies)."
+        },
+        "extScan.exclude": {
+          "type": "string",
+          "default": "**/{node_modules,.venv,venv,.git,dist,out,build}/**",
+          "description": "Glob de pastas ignoradas ao procurar manifestos."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "smoke": "npm run compile && node scripts/smoke.js",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "~1.85.0",
+    "typescript": "^5.4.0"
+  }
+}

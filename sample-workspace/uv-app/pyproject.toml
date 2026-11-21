@@ -1,0 +1,21 @@
+[project]
+name = "uv-app"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.25.0,<3",
+    "jinja2==3.1.2",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+web = ["flask==2.2.0"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+]
+
+[tool.uv]
+# força uma versão antiga de uma dependência transitiva (só para demonstração)
+constraint-dependencies = ["urllib3==1.26.4"]

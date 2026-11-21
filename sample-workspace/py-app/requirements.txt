@@ -1,0 +1,6 @@
+# dependências de exemplo
+requests==2.19.0
+Django>=3.0.0  # faixa: versão mínima usada
+flask
+urllib3==1.24.1 ; python_version >= "3"
+-r outros.txt
