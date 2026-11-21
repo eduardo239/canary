@@ -17,6 +17,16 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Em pastas não confiáveis, o Canary só lê os manifestos e mostra os alertas; a ação que roda \"uv lock\" no terminal fica desativada."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "O Canary lê os arquivos do disco local."
+    }
+  },
   "categories": [
     "Linters",
     "Other"
@@ -59,8 +69,8 @@
         "category": "Canary"
       },
       {
-        "command": "canary.runInTerminal",
-        "title": "Executar comando de correção",
+        "command": "canary.uvUpgrade",
+        "title": "Atualizar pacote com uv lock",
         "category": "Canary"
       }
     ],
@@ -71,7 +81,7 @@
           "when": "false"
         },
         {
-          "command": "canary.runInTerminal",
+          "command": "canary.uvUpgrade",
           "when": "false"
         }
       ],
@@ -133,6 +143,14 @@
           "type": "string",
           "default": "**/{node_modules,.venv,venv,.git,dist,out,build}/**",
           "description": "Glob de pastas ignoradas ao procurar manifestos."
+        },
+        "canary.ignorePackages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Pacotes que **não** são analisados nem enviados à OSV.dev (útil para pacotes internos/privados). Aceita `*` e prefixo de ecossistema opcional. Ex.: `@minhaempresa/*`, `npm:internal-*`, `pypi:minhaempresa-*`."
         }
       }
     }

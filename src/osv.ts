@@ -1,6 +1,7 @@
 import { normalizePyName } from './parsers/python';
 import { Dependency, Ecosystem, Finding, Severity, SEVERITY_ORDER, Vulnerability } from './types';
 import { compareVersions } from './version';
+import { isSafeVersion } from './security';
 
 const API = 'https://api.osv.dev/v1';
 const BATCH_SIZE = 500;
@@ -120,7 +121,10 @@ function toVulnerability(v: OsvVuln, name: string, ecosystem: Ecosystem, version
       }
     }
   }
-  const fixedVersion = fixes.filter((f) => compareVersions(f, version) > 0).sort(compareVersions)[0];
+  // a versão corrigida pode ser escrita no manifesto pelo Quick Fix: só aceita caracteres de versão
+  const fixedVersion = fixes
+    .filter((f) => isSafeVersion(f) && compareVersions(f, version) > 0)
+    .sort(compareVersions)[0];
 
   const rawSeverity = v.database_specific?.severity ?? affected.find((a) => a.database_specific?.severity)?.database_specific?.severity;
 

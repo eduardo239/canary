@@ -60,6 +60,52 @@ pelo `pyproject.toml`, com versões aproximadas.
 | `canary.scanOnChange` | `true` | Verifica de novo quando manifestos ou lockfiles mudam |
 | `canary.includeDevDependencies` | `true` | Inclui dependências de desenvolvimento (`devDependencies`, `[dependency-groups]`, `tool.uv.dev-dependencies`) |
 | `canary.exclude` | `**/{node_modules,.venv,venv,.git,dist,out,build}/**` | Pastas ignoradas na busca por manifestos |
+| `canary.ignorePackages` | `[]` | Pacotes que não são analisados nem enviados à OSV.dev (veja abaixo) |
+
+### Ignorando pacotes internos
+
+Use `canary.ignorePackages` para que pacotes privados nunca saiam da sua máquina. Os padrões aceitam `*`
+e um prefixo opcional de ecossistema (`npm:` ou `pypi:`):
+
+```jsonc
+// .vscode/settings.json
+{
+  "canary.ignorePackages": [
+    "@minhaempresa/*",      // qualquer ecossistema
+    "npm:internal-*",       // só npm
+    "pypi:minhaempresa-*"   // só PyPI
+  ]
+}
+```
+
+Em pacotes Python, os nomes são comparados já normalizados (PEP 503): `pypi:Minha_Empresa-*` também casa com
+`minha-empresa-core`. A comparação ignora maiúsculas. O canal **Canary** do painel *Output* mostra quantos
+pacotes foram ignorados em cada verificação.
+
+## Segurança e privacidade
+
+**O que é enviado para fora:** só o nome, a versão e o ecossistema de cada dependência, para
+`https://api.osv.dev` (mantida pelo Google), por HTTPS. Código, caminhos de arquivo e nome do projeto não são
+enviados. Não há telemetria, login nem outros servidores. Pacotes listados em `canary.ignorePackages` são
+filtrados antes da consulta.
+
+**O que a extensão faz no seu ambiente:**
+
+- Lê os manifestos e lockfiles como texto ou JSON; nunca executa código do projeto nem roda gerenciadores de
+  pacotes por conta própria.
+- Não tem dependências em tempo de execução: o pacote contém apenas o código da própria extensão.
+- Só altera arquivos quando você aplica um Quick Fix, e a alteração pode ser desfeita com `Ctrl+Z`.
+- A única ação que roda um comando (`uv lock --upgrade-package`) só aparece em pastas confiáveis, valida o
+  nome do pacote contra o padrão do PyPI e exige que a pasta do projeto esteja dentro do workspace.
+- Versões corrigidas vindas da OSV.dev são validadas antes de serem escritas num manifesto.
+
+**Workspace Trust:** em pastas não confiáveis (Modo Restrito), o Canary continua analisando e mostrando os
+alertas, porque isso é só leitura, mas desativa a ação que roda comandos no terminal.
+
+**O que o Canary não garante:** a ausência de alertas não significa ausência de vulnerabilidades. A extensão só
+conhece o que está catalogado na OSV.dev. Ela alerta sobre pacotes maliciosos já conhecidos (IDs `MAL-…`), mas
+não detecta ataques novos. Use-a como primeira linha de defesa, junto com `npm audit`, Dependabot e revisão de
+código.
 
 ## Desenvolvimento
 
@@ -114,6 +160,7 @@ src/
   parsers/uv.ts      pyproject.toml e uv.lock
   parsers/python.ts  requirements*.txt e leitura de specs PEP 508
   version.ts         comparação e extração de versões
+  security.ts        validação de nomes e versões, filtro canary.ignorePackages
   types.ts           tipos compartilhados
 scripts/smoke.js     teste rápido fora do VS Code
 sample-workspace/    projetos de exemplo

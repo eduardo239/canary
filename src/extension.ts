@@ -5,6 +5,7 @@ import { parseNpmProject } from './parsers/npm';
 import { parsePnpmProject } from './parsers/pnpm';
 import { parseRequirements } from './parsers/python';
 import { parseUvProject } from './parsers/uv';
+import { compileIgnorePatterns, isSafePyPackageName } from './security';
 import { FindingsTreeProvider, maxSeverity } from './tree';
 import { Dependency, Finding, Severity, SEVERITY_ORDER } from './types';
 import { compareVersions } from './version';
@@ -43,7 +44,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('canary.scan', () => runScan(true)),
     vscode.commands.registerCommand('canary.clear', clearResults),
     vscode.commands.registerCommand('canary.openAdvisory', (url: string) => vscode.env.openExternal(vscode.Uri.parse(url))),
-    vscode.commands.registerCommand('canary.runInTerminal', runInTerminal),
+    vscode.commands.registerCommand('canary.uvUpgrade', uvUpgrade),
     vscode.languages.registerCodeActionsProvider(
       [
         { pattern: '**/package.json' },
@@ -72,6 +73,14 @@ export function activate(context: vscode.ExtensionContext): void {
   watcher.onDidCreate(onChange);
   watcher.onDidDelete(onChange);
   context.subscriptions.push(watcher, { dispose: () => clearTimeout(timer) });
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (['canary.ignorePackages', 'canary.includeDevDependencies', 'canary.exclude'].some((k) => e.affectsConfiguration(k))) {
+        void runScan(false);
+      }
+    }),
+  );
 
   if (config().get<boolean>('scanOnStartup', true)) {
     void runScan(false);
@@ -102,7 +111,15 @@ async function runScan(manual: boolean): Promise<void> {
         token.onCancellationRequested(() => abort.abort());
 
         progress.report({ message: 'procurando manifestos…' });
-        const deps = await collectDependencies();
+        const collected = await collectDependencies();
+        // pacotes ignorados nunca são enviados à OSV.dev
+        const isIgnored = compileIgnorePatterns(config().get<string[]>('ignorePackages', []));
+        const deps = collected.filter((d) => !isIgnored(d));
+        if (deps.length < collected.length) {
+          output.appendLine(
+            `[info] ${collected.length - deps.length} dependência(s) ignorada(s) por canary.ignorePackages (não enviadas à OSV.dev)`,
+          );
+        }
         if (token.isCancellationRequested) {
           return;
         }
@@ -380,19 +397,41 @@ function uvLockAction(finding: Finding, diag: vscode.Diagnostic): vscode.CodeAct
   if (dep.manager !== 'uv' || !dep.projectDir || dep.approximate) {
     return undefined;
   }
+  // roda um comando no terminal: só em pastas confiáveis e com nome de pacote válido
+  if (!vscode.workspace.isTrusted || !isSafePyPackageName(dep.name)) {
+    return undefined;
+  }
   if (!finding.vulnerabilities.some((v) => v.fixedVersion)) {
     return undefined;
   }
-  const cmd = `uv lock --upgrade-package ${dep.name}`;
-  const action = new vscode.CodeAction(`Rodar "${cmd}" no terminal`, vscode.CodeActionKind.QuickFix);
-  action.command = { command: 'canary.runInTerminal', title: cmd, arguments: [dep.projectDir, cmd] };
+  const action = new vscode.CodeAction(
+    `Rodar "uv lock --upgrade-package ${dep.name}" no terminal`,
+    vscode.CodeActionKind.QuickFix,
+  );
+  action.command = { command: 'canary.uvUpgrade', title: 'uv lock --upgrade-package', arguments: [dep.projectDir, dep.name] };
   action.diagnostics = [diag];
   action.isPreferred = !dep.versionLocation;
   return action;
 }
 
-function runInTerminal(cwd: string, cmd: string): void {
-  const terminal = vscode.window.createTerminal({ name: 'Canary', cwd });
+/**
+ * Executa "uv lock --upgrade-package <pacote>". Recebe só a pasta e o nome (nunca um comando pronto)
+ * e revalida tudo, porque comandos podem ser chamados com argumentos arbitrários.
+ */
+function uvUpgrade(projectDir: unknown, packageName: unknown): void {
+  if (!vscode.workspace.isTrusted) {
+    void vscode.window.showWarningMessage('Canary: confie nesta pasta (Workspace Trust) para rodar comandos no terminal.');
+    return;
+  }
+  if (typeof projectDir !== 'string' || typeof packageName !== 'string' || !isSafePyPackageName(packageName)) {
+    void vscode.window.showErrorMessage('Canary: nome de pacote inválido; comando não executado.');
+    return;
+  }
+  if (!vscode.workspace.getWorkspaceFolder(vscode.Uri.file(projectDir))) {
+    void vscode.window.showErrorMessage('Canary: a pasta do projeto está fora do workspace; comando não executado.');
+    return;
+  }
+  const terminal = vscode.window.createTerminal({ name: 'Canary', cwd: projectDir });
   terminal.show();
-  terminal.sendText(cmd);
+  terminal.sendText(`uv lock --upgrade-package ${packageName}`);
 }
