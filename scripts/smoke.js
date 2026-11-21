@@ -1,6 +1,7 @@
 // Teste rápido fora do VS Code: parsers + consulta real à OSV.dev.
 const path = require('path');
 const { parseNpmProject } = require('../out/parsers/npm');
+const { parsePnpmProject } = require('../out/parsers/pnpm');
 const { parseRequirements } = require('../out/parsers/python');
 const { parseUvProject } = require('../out/parsers/uv');
 const { OsvClient } = require('../out/osv');
@@ -8,7 +9,8 @@ const { OsvClient } = require('../out/osv');
 (async () => {
   const root = path.resolve(process.argv[2] || path.join(__dirname, '..', 'sample-workspace'));
   const deps = [
-    ...(await parseNpmProject(path.join(root, 'node-app'), { includeDev: true })),
+    ...(await parseNpmProject(path.join(root, 'node-app'), { includeDev: true })).dependencies,
+    ...(await parsePnpmProject(path.join(root, 'pnpm-app'), { includeDev: true })).dependencies,
     ...(await parseRequirements(path.join(root, 'py-app', 'requirements.txt'))),
     ...(await parseUvProject(path.join(root, 'uv-app'), { includeDev: true })),
   ];

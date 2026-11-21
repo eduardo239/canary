@@ -1,84 +1,157 @@
-# Ext Scan – Vulnerabilidades em Dependências
+<p align="center">
+  <img src="media/canary-icon2.jpg" alt="Logo do Canary: um canário dentro de um escudo" width="260">
+</p>
 
-Extensão para VS Code que analisa as dependências do workspace e aponta vulnerabilidades conhecidas,
-usando a base pública [OSV.dev](https://osv.dev) (gratuita, sem login nem chave de API).
+<h1 align="center">Canary</h1>
+
+<p align="center">
+  <em>O canário na mina de carvão: um aviso antecipado quando uma dependência do seu projeto tem vulnerabilidade conhecida.</em>
+</p>
+
+Canary é uma extensão para VS Code que analisa as dependências do workspace e aponta vulnerabilidades
+diretamente no editor. Ela consulta a base pública [OSV.dev](https://osv.dev), que é gratuita e não
+exige login nem chave de API.
+
+## Gerenciadores suportados
+
+| Gerenciador | Arquivos lidos | Transitivas | Workspaces |
+|---|---|---|---|
+| **npm** | `package.json`, `package-lock.json` (v1, v2, v3) | ✅ | ✅ |
+| **pnpm** | `package.json`, `pnpm-lock.yaml` (5.x, 6.x, 9.x) | ✅ | ✅ |
+| **uv** | `pyproject.toml`, `uv.lock` | ✅ | ✅ |
+| **pip** | `requirements*.txt` | — | — |
+
+Projetos Python que seguem o PEP 621 sem `uv.lock` (hatch, pdm, setuptools) também são analisados
+pelo `pyproject.toml`, com versões aproximadas.
 
 ## Recursos
 
-- **Ecossistemas:**
-  - npm: `package.json` + `package-lock.json` (v1/v2/v3)
-  - uv: `pyproject.toml` + `uv.lock`, incluindo workspaces, extras e `[dependency-groups]`
-  - pip: `requirements*.txt`
-  - Projetos PEP 621 sem `uv.lock` (hatch, pdm, setuptools...) também são lidos pelo `pyproject.toml`, com versões aproximadas.
-- **Dependências transitivas:** lidas do `package-lock.json` e do `uv.lock`.
-- **Diagnostics no editor:** sublinhado na linha da dependência, com severidade, ID do advisory (link clicável) e versão corrigida.
+- **Alertas no editor:** cada dependência vulnerável fica sublinhada na linha em que é declarada. A cor
+  depende da severidade: vermelho para crítica ou alta, amarelo para média, azul para baixa. O alerta
+  mostra o ID do advisory, com link, e a versão que corrige.
 - **Quick Fix** (`Ctrl+.`):
-  - atualiza a versão no manifesto para a menor que corrige todas as vulnerabilidades conhecidas do pacote;
-  - no uv, roda `uv lock --upgrade-package <pacote>` no terminal (funciona também para transitivas);
-  - abre o advisory.
-- **Painel lateral** (ícone de escudo): pacotes vulneráveis ordenados por severidade.
-- **Status bar** com o total de vulnerabilidades.
-- **Verificação automática** ao abrir o workspace e quando um manifesto muda (inclusive depois de `npm install`).
+  - troca a versão no manifesto pela menor que corrige todas as vulnerabilidades conhecidas do pacote,
+    mantendo o prefixo `^` ou `~` que estava antes;
+  - no uv, roda `uv lock --upgrade-package <pacote>` no terminal, o que funciona também para
+    dependências transitivas;
+  - abre a página do advisory.
+- **Painel lateral** (ícone do canário na barra de atividades, à esquerda): pacotes vulneráveis ordenados por severidade,
+  com as vulnerabilidades de cada um.
+- **Barra de status:** total de vulnerabilidades, com cor de alerta conforme a pior severidade.
+- **Verificação automática** ao abrir o workspace e sempre que um manifesto ou lockfile muda, inclusive
+  depois de `npm install`, `pnpm install` ou `uv lock`.
+- **Monorepos:** em workspaces npm, pnpm ou uv, as dependências diretas de cada projeto apontam para o
+  próprio `package.json` ou `pyproject.toml`, e nenhum pacote é contado duas vezes.
 
-## Como rodar em desenvolvimento
+## Comandos
 
-```bash
-npm install
-npm run compile
-```
-
-Abra esta pasta no VS Code e pressione **F5**. Na janela *Extension Development Host*, abra a pasta
-`sample-workspace/` (que tem pacotes vulneráveis de propósito) e veja os resultados.
-
-Teste rápido sem abrir o VS Code (parsers + consulta real à OSV):
-
-```bash
-npm run smoke
-```
-
-## Gerar o .vsix para instalar
-
-```bash
-npm run package
-code --install-extension ext-scan-0.1.0.vsix
-```
+| Comando | Descrição |
+|---|---|
+| `Canary: Verificar vulnerabilidades` | Analisa o workspace agora |
+| `Canary: Limpar resultados` | Remove os alertas e esvazia o painel |
 
 ## Configurações
 
 | Chave | Padrão | Descrição |
 |---|---|---|
-| `extScan.scanOnStartup` | `true` | Verifica ao abrir o workspace |
-| `extScan.scanOnChange` | `true` | Verifica de novo quando os manifestos mudam |
-| `extScan.includeDevDependencies` | `true` | Inclui dependências de dev (`devDependencies`, `[dependency-groups]`, `tool.uv.dev-dependencies`) |
-| `extScan.exclude` | `**/{node_modules,.venv,venv,.git,dist,out,build}/**` | Pastas ignoradas |
+| `canary.scanOnStartup` | `true` | Verifica ao abrir o workspace |
+| `canary.scanOnChange` | `true` | Verifica de novo quando manifestos ou lockfiles mudam |
+| `canary.includeDevDependencies` | `true` | Inclui dependências de desenvolvimento (`devDependencies`, `[dependency-groups]`, `tool.uv.dev-dependencies`) |
+| `canary.exclude` | `**/{node_modules,.venv,venv,.git,dist,out,build}/**` | Pastas ignoradas na busca por manifestos |
 
-## Limitações conhecidas (MVP)
+## Desenvolvimento
 
-- Sem lockfile, a versão é **estimada** pela faixa (`^4.17.0` vira `4.17.0`); o diagnostic avisa quando isso acontece.
-- Em `requirements.txt`, só `==`, `>=` e `~=` são analisados; linhas sem versão, `-r` e URLs são ignoradas.
-- Vulnerabilidades transitivas do npm aparecem no `package-lock.json`, sem Quick Fix. A correção é atualizar o pacote pai ou usar `overrides`.
-- No uv, `uv lock --upgrade-package` só resolve se as restrições do `pyproject.toml` (inclusive `constraint-dependencies`) permitirem a versão corrigida.
-- Só pacotes vindos de registry (PyPI) são consultados; dependências git, URL ou caminho local são ignoradas.
-- `[tool.poetry.dependencies]` e `poetry.lock` ainda não são suportados.
-- A comparação de versões é simplificada (cobre semver e os casos comuns do PEP 440).
+Requisitos: Node.js 18 ou superior e VS Code 1.85 ou superior.
+
+```bash
+npm install
+npm run compile      # ou: npm run watch
+```
+
+Para rodar a extensão:
+
+1. Abra esta pasta no VS Code e pressione **F5**.
+2. Na janela *Extension Development Host*, abra a pasta `sample-workspace/`.
+3. Veja os alertas no painel *Problems*, no ícone do canário e na barra de status.
+
+Os logs ficam no canal **Canary** do painel *Output*.
+
+Teste rápido sem abrir o VS Code (lê os projetos de exemplo e consulta a OSV.dev de verdade):
+
+```bash
+npm run smoke
+```
+
+### Projetos de exemplo
+
+A pasta `sample-workspace/` tem um projeto por gerenciador, todos com pacotes vulneráveis de propósito:
+
+| Pasta | Gerenciador | Destaques |
+|---|---|---|
+| `node-app/` | npm | `lodash`, `express`; transitivas `qs` e `path-to-regexp` |
+| `pnpm-app/` | pnpm (workspace) | `axios`, `@babel/traverse` em `packages/web`; transitiva `qs` forçada com `overrides` |
+| `uv-app/` | uv | `jinja2`, `flask`; transitiva `urllib3` forçada com `constraint-dependencies` |
+| `py-app/` | pip | `requests`, `django`, `urllib3` |
+
+### Gerar o pacote `.vsix`
+
+```bash
+npm run package
+code --install-extension canary-0.1.0.vsix
+```
 
 ## Estrutura
 
 ```
 src/
-  extension.ts      ativação, comandos, diagnostics, quick fix, status bar
-  tree.ts           painel lateral
-  osv.ts            cliente OSV.dev (querybatch + detalhes, com cache)
-  parsers/npm.ts    package.json / package-lock.json
-  parsers/python.ts requirements*.txt e leitura de specs PEP 508
-  parsers/uv.ts     pyproject.toml / uv.lock
-  version.ts        comparação e extração de versões
-  types.ts
+  extension.ts       ativação, comandos, alertas, Quick Fix, barra de status
+  tree.ts            painel lateral
+  osv.ts             cliente da OSV.dev (consulta em lote e detalhes, com cache)
+  parsers/npm.ts     package.json e package-lock.json
+  parsers/pnpm.ts    pnpm-lock.yaml
+  parsers/uv.ts      pyproject.toml e uv.lock
+  parsers/python.ts  requirements*.txt e leitura de specs PEP 508
+  version.ts         comparação e extração de versões
+  types.ts           tipos compartilhados
+scripts/smoke.js     teste rápido fora do VS Code
+sample-workspace/    projetos de exemplo
+media/
+  canary-icon.jpg    logo original (1024×1024, fora do pacote .vsix)
+  canary-icon2.jpg   logo usado no README
+  icon.png           ícone da extensão no Marketplace (256×256, recorte do logo)
+  canary.svg         ícone da barra de atividades (traço monocromático, 24×24)
 ```
 
-## Próximos passos sugeridos
+O ícone da barra de atividades precisa ser um SVG monocromático e transparente, porque o VS Code o usa
+como máscara e o pinta com a cor do tema. Por isso ele é uma versão simplificada do logo, sem o texto e
+sem o `</>`.
 
-- Mais ecossistemas: `poetry.lock`, `Pipfile.lock`, `yarn.lock`, `pnpm-lock.yaml`, `go.mod`, `pom.xml`, `Cargo.lock`.
-- Cache persistente (`context.globalState`) para funcionar offline.
-- Mostrar a cadeia de dependência das transitivas (quem puxa o pacote).
-- Exportar um relatório (JSON/SARIF) e um modo CLI para CI.
+Os parsers não dependem da API do VS Code e não usam bibliotecas externas. Eles leem os arquivos linha
+a linha para guardar a posição exata de cada dependência, que é usada pelos alertas e pelo Quick Fix.
+
+## Limitações conhecidas
+
+- **Sem lockfile**, a versão é estimada pela faixa declarada (`^4.17.0` vira `4.17.0`); o alerta avisa
+  quando isso acontece.
+- **`requirements.txt`:** só `==`, `>=` e `~=` são analisados. Linhas sem versão, `-r` e URLs são ignoradas.
+- **Transitivas no npm e no pnpm** não têm Quick Fix. A correção é atualizar o pacote que as traz ou usar
+  `overrides` (no npm, em `package.json`; no pnpm, em `pnpm-workspace.yaml`).
+- **uv:** `uv lock --upgrade-package` só resolve quando as restrições do `pyproject.toml`, inclusive
+  `constraint-dependencies`, permitem a versão corrigida.
+- **Pacotes fora de registry** (git, URL, caminho local) não são consultados.
+- **Ainda não suportados:** `yarn.lock`, `poetry.lock` e `Pipfile.lock`.
+- A comparação de versões é simplificada: cobre semver e os casos comuns do PEP 440.
+- A versão sugerida às vezes pula para outra versão principal (por exemplo, Django 3.x → 4.2.x) quando a
+  série atual não recebeu correção.
+
+## Próximos passos
+
+- Suporte a `yarn.lock`, `poetry.lock`, `Pipfile.lock`, `go.mod`, `pom.xml` e `Cargo.lock`.
+- Quick Fix com `overrides` para transitivas do npm e do pnpm.
+- Cache persistente para funcionar offline.
+- Mostrar a cadeia de dependências das transitivas (quem traz o pacote).
+- Exportar relatório (JSON ou SARIF) e um modo CLI para CI.
+
+## Licença
+
+MIT

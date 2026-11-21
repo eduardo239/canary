@@ -1,7 +1,7 @@
 export type Ecosystem = 'npm' | 'PyPI';
 
 /** Ferramenta que gerencia a dependência (define como corrigir). */
-export type Manager = 'npm' | 'pip' | 'uv';
+export type Manager = 'npm' | 'pnpm' | 'pip' | 'uv';
 
 export type Severity = 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW' | 'UNKNOWN';
 
@@ -53,4 +53,11 @@ export interface Vulnerability {
 export interface Finding {
   dependency: Dependency;
   vulnerabilities: Vulnerability[];
+}
+
+/** Resultado de um parser de projeto com lockfile. */
+export interface ParseResult {
+  dependencies: Dependency[];
+  /** Pastas de membros de workspace já cobertas por este lockfile. */
+  members: string[];
 }

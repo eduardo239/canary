@@ -1,0 +1,9 @@
+{
+  "name": "@pnpm-app/web",
+  "version": "1.0.0",
+  "dependencies": {
+    "axios": "0.21.0",
+    "@babel/traverse": "7.22.0",
+    "pnpm-app": "workspace:*"
+  }
+}

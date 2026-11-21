@@ -16,7 +16,7 @@ class PackageNode extends vscode.TreeItem {
         `Declarado como \`${d.spec}\` em \`${where}\`` +
         (d.approximate ? '\n\n_Versão estimada a partir da faixa (sem lockfile)._' : ''),
     );
-    this.contextValue = 'extScan.package';
+    this.contextValue = 'canary.package';
     this.command = {
       command: 'vscode.open',
       title: 'Abrir',
@@ -38,8 +38,8 @@ class VulnNode extends vscode.TreeItem {
         (vuln.aliases.length ? `Aliases: ${vuln.aliases.join(', ')}\n\n` : '') +
         (vuln.fixedVersion ? `Corrigido em **${vuln.fixedVersion}**` : 'Sem versão corrigida conhecida'),
     );
-    this.contextValue = 'extScan.vulnerability';
-    this.command = { command: 'extScan.openAdvisory', title: 'Abrir advisory', arguments: [vuln.url] };
+    this.contextValue = 'canary.vulnerability';
+    this.command = { command: 'canary.openAdvisory', title: 'Abrir advisory', arguments: [vuln.url] };
   }
 }
 

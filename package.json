@@ -1,10 +1,11 @@
 {
-  "name": "ext-scan",
-  "displayName": "Ext Scan – Vulnerabilidades em Dependências",
-  "description": "Analisa as dependências do workspace (npm, pip e uv) e aponta vulnerabilidades conhecidas usando a base OSV.dev.",
+  "name": "canary",
+  "displayName": "Canary",
+  "description": "Alerta precoce de vulnerabilidades: analisa as dependências do workspace (npm, pnpm, pip e uv) usando a base OSV.dev.",
   "version": "0.1.0",
   "publisher": "local",
   "license": "MIT",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -19,60 +20,62 @@
     "npm",
     "python",
     "cve",
-    "uv"
+    "uv",
+    "pnpm"
   ],
   "main": "./out/extension.js",
   "activationEvents": [
     "workspaceContains:**/package.json",
     "workspaceContains:**/requirements*.txt",
     "workspaceContains:**/pyproject.toml",
-    "workspaceContains:**/uv.lock"
+    "workspaceContains:**/uv.lock",
+    "workspaceContains:**/pnpm-lock.yaml"
   ],
   "contributes": {
     "commands": [
       {
-        "command": "extScan.scan",
+        "command": "canary.scan",
         "title": "Verificar vulnerabilidades",
-        "category": "Ext Scan",
+        "category": "Canary",
         "icon": "$(refresh)"
       },
       {
-        "command": "extScan.clear",
+        "command": "canary.clear",
         "title": "Limpar resultados",
-        "category": "Ext Scan",
+        "category": "Canary",
         "icon": "$(clear-all)"
       },
       {
-        "command": "extScan.openAdvisory",
+        "command": "canary.openAdvisory",
         "title": "Abrir advisory",
-        "category": "Ext Scan"
+        "category": "Canary"
       },
       {
-        "command": "extScan.runInTerminal",
+        "command": "canary.runInTerminal",
         "title": "Executar comando de correção",
-        "category": "Ext Scan"
+        "category": "Canary"
       }
     ],
     "menus": {
       "commandPalette": [
         {
-          "command": "extScan.openAdvisory",
+          "command": "canary.openAdvisory",
           "when": "false"
         },
         {
-          "command": "extScan.runInTerminal",
+          "command": "canary.runInTerminal",
           "when": "false"
         }
       ],
       "view/title": [
         {
-          "command": "extScan.scan",
-          "when": "view == extScan.results",
+          "command": "canary.scan",
+          "when": "view == canary.results",
           "group": "navigation@1"
         },
         {
-          "command": "extScan.clear",
-          "when": "view == extScan.results",
+          "command": "canary.clear",
+          "when": "view == canary.results",
           "group": "navigation@2"
         }
       ]
@@ -80,45 +83,45 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "extScan",
-          "title": "Ext Scan",
-          "icon": "media/shield.svg"
+          "id": "canary",
+          "title": "Canary",
+          "icon": "media/canary.svg"
         }
       ]
     },
     "views": {
-      "extScan": [
+      "canary": [
         {
-          "id": "extScan.results",
+          "id": "canary.results",
           "name": "Vulnerabilidades"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "extScan.results",
-        "contents": "Nenhuma vulnerabilidade encontrada (ou nenhuma verificação feita ainda).\n[Verificar agora](command:extScan.scan)"
+        "view": "canary.results",
+        "contents": "Nenhuma vulnerabilidade encontrada (ou nenhuma verificação feita ainda).\n[Verificar agora](command:canary.scan)"
       }
     ],
     "configuration": {
-      "title": "Ext Scan",
+      "title": "Canary",
       "properties": {
-        "extScan.scanOnStartup": {
+        "canary.scanOnStartup": {
           "type": "boolean",
           "default": true,
           "description": "Verifica o workspace automaticamente ao abrir."
         },
-        "extScan.scanOnChange": {
+        "canary.scanOnChange": {
           "type": "boolean",
           "default": true,
-          "description": "Verifica novamente quando package.json, package-lock.json, requirements*.txt, pyproject.toml ou uv.lock mudam."
+          "description": "Verifica novamente quando manifestos ou lockfiles mudam (package.json, package-lock.json, pnpm-lock.yaml, requirements*.txt, pyproject.toml, uv.lock)."
         },
-        "extScan.includeDevDependencies": {
+        "canary.includeDevDependencies": {
           "type": "boolean",
           "default": true,
           "description": "Inclui dependências de desenvolvimento (devDependencies do npm, [dependency-groups] e tool.uv.dev-dependencies)."
         },
-        "extScan.exclude": {
+        "canary.exclude": {
           "type": "string",
           "default": "**/{node_modules,.venv,venv,.git,dist,out,build}/**",
           "description": "Glob de pastas ignoradas ao procurar manifestos."

@@ -2,14 +2,15 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { OsvClient } from './osv';
 import { parseNpmProject } from './parsers/npm';
+import { parsePnpmProject } from './parsers/pnpm';
 import { parseRequirements } from './parsers/python';
 import { parseUvProject } from './parsers/uv';
 import { FindingsTreeProvider, maxSeverity } from './tree';
 import { Dependency, Finding, Severity, SEVERITY_ORDER } from './types';
 import { compareVersions } from './version';
 
-const MANIFEST_GLOB = '**/{package.json,package-lock.json,requirements*.txt,pyproject.toml,uv.lock}';
-const SOURCE = 'ext-scan';
+const MANIFEST_GLOB = '**/{package.json,package-lock.json,pnpm-lock.yaml,requirements*.txt,pyproject.toml,uv.lock}';
+const SOURCE = 'canary';
 
 let diagnostics: vscode.DiagnosticCollection;
 let tree: FindingsTreeProvider;
@@ -26,25 +27,26 @@ let rescanRequested = false;
 export function activate(context: vscode.ExtensionContext): void {
   diagnostics = vscode.languages.createDiagnosticCollection(SOURCE);
   tree = new FindingsTreeProvider();
-  output = vscode.window.createOutputChannel('Ext Scan');
+  output = vscode.window.createOutputChannel('Canary');
   status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
-  status.command = 'extScan.results.focus';
-  setStatus('$(shield) Ext Scan', 'Clique para ver as vulnerabilidades');
+  status.command = 'canary.results.focus';
+  setStatus('$(shield) Canary', 'Clique para ver as vulnerabilidades');
   status.show();
 
   context.subscriptions.push(
     diagnostics,
     output,
     status,
-    vscode.window.registerTreeDataProvider('extScan.results', tree),
-    vscode.commands.registerCommand('extScan.scan', () => runScan(true)),
-    vscode.commands.registerCommand('extScan.clear', clearResults),
-    vscode.commands.registerCommand('extScan.openAdvisory', (url: string) => vscode.env.openExternal(vscode.Uri.parse(url))),
-    vscode.commands.registerCommand('extScan.runInTerminal', runInTerminal),
+    vscode.window.registerTreeDataProvider('canary.results', tree),
+    vscode.commands.registerCommand('canary.scan', () => runScan(true)),
+    vscode.commands.registerCommand('canary.clear', clearResults),
+    vscode.commands.registerCommand('canary.openAdvisory', (url: string) => vscode.env.openExternal(vscode.Uri.parse(url))),
+    vscode.commands.registerCommand('canary.runInTerminal', runInTerminal),
     vscode.languages.registerCodeActionsProvider(
       [
         { pattern: '**/package.json' },
         { pattern: '**/package-lock.json' },
+        { pattern: '**/pnpm-lock.yaml' },
         { pattern: '**/requirements*.txt' },
         { pattern: '**/pyproject.toml' },
         { pattern: '**/uv.lock' },
@@ -77,7 +79,7 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {}
 
 function config() {
-  return vscode.workspace.getConfiguration('extScan');
+  return vscode.workspace.getConfiguration('canary');
 }
 
 async function runScan(manual: boolean): Promise<void> {
@@ -90,7 +92,7 @@ async function runScan(manual: boolean): Promise<void> {
     await vscode.window.withProgress(
       {
         location: manual ? vscode.ProgressLocation.Notification : vscode.ProgressLocation.Window,
-        title: 'Ext Scan: verificando dependências',
+        title: 'Canary: verificando dependências',
         cancellable: manual,
       },
       async (progress, token) => {
@@ -115,8 +117,8 @@ async function runScan(manual: boolean): Promise<void> {
         if (manual) {
           void vscode.window.showInformationMessage(
             findings.length
-              ? `Ext Scan: ${total} vulnerabilidade(s) em ${findings.length} pacote(s).`
-              : `Ext Scan: nenhuma vulnerabilidade conhecida em ${deps.length} dependência(s).`,
+              ? `Canary: ${total} vulnerabilidade(s) em ${findings.length} pacote(s).`
+              : `Canary: nenhuma vulnerabilidade conhecida em ${deps.length} dependência(s).`,
           );
         }
       },
@@ -127,9 +129,9 @@ async function runScan(manual: boolean): Promise<void> {
     }
     const msg = err?.message ?? String(err);
     output.appendLine(`[erro] ${msg}`);
-    setStatus('$(shield) Ext Scan: erro', msg);
+    setStatus('$(shield) Canary: erro', msg);
     if (manual) {
-      void vscode.window.showErrorMessage(`Ext Scan: falha na verificação — ${msg}`);
+      void vscode.window.showErrorMessage(`Canary: falha na verificação — ${msg}`);
     }
   } finally {
     scanning = false;
@@ -146,14 +148,20 @@ async function collectDependencies(): Promise<Dependency[]> {
   const files = await vscode.workspace.findFiles(MANIFEST_GLOB, exclude);
 
   const npmDirs = new Set<string>();
+  const npmLockDirs = new Set<string>();
+  const pnpmLockDirs = new Set<string>();
   const reqFiles: string[] = [];
   const pyprojectDirs = new Set<string>();
   const uvLockDirs = new Set<string>();
   for (const f of files) {
     const base = path.basename(f.fsPath);
     const dir = path.dirname(f.fsPath);
-    if (base === 'package.json' || base === 'package-lock.json') {
+    if (base === 'package.json') {
       npmDirs.add(dir);
+    } else if (base === 'package-lock.json') {
+      npmLockDirs.add(dir);
+    } else if (base === 'pnpm-lock.yaml') {
+      pnpmLockDirs.add(dir);
     } else if (base === 'pyproject.toml') {
       pyprojectDirs.add(dir);
     } else if (base === 'uv.lock') {
@@ -162,25 +170,39 @@ async function collectDependencies(): Promise<Dependency[]> {
       reqFiles.push(f.fsPath);
     }
   }
+
+  const failures: unknown[] = [];
+  const settle = async <T>(promises: Promise<T>[]): Promise<T[]> => {
+    const results = await Promise.allSettled(promises);
+    return results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : (failures.push(r.reason), [])));
+  };
+
+  // 1) projetos JS com lockfile (pnpm tem prioridade se houver os dois)
+  const jsLocked = await settle([
+    ...[...pnpmLockDirs].map((d) => parsePnpmProject(d, { includeDev })),
+    ...[...npmLockDirs].filter((d) => !pnpmLockDirs.has(d)).map((d) => parseNpmProject(d, { includeDev })),
+  ]);
+  // 2) package.json sem lockfile, ignorando membros de workspace já cobertos por um lockfile
+  const members = new Set(jsLocked.flatMap((r) => r.members));
+  const jsLoose = await settle(
+    [...npmDirs]
+      .filter((d) => !npmLockDirs.has(d) && !pnpmLockDirs.has(d) && !members.has(d))
+      .map((d) => parseNpmProject(d, { includeDev })),
+  );
+
   // membros de um workspace uv já estão no uv.lock da raiz: não analisar de novo
   const coveredByLock = (dir: string) =>
     [...uvLockDirs].some((lockDir) => lockDir !== dir && (dir + path.sep).startsWith(lockDir + path.sep));
   const uvDirs = new Set([...uvLockDirs, ...[...pyprojectDirs].filter((d) => !uvLockDirs.has(d) && !coveredByLock(d))]);
-
-  const results = await Promise.allSettled([
-    ...[...npmDirs].map((d) => parseNpmProject(d, { includeDev })),
+  const python = await settle([
     ...[...uvDirs].map((d) => parseUvProject(d, { includeDev })),
     ...reqFiles.map((f) => parseRequirements(f)),
   ]);
-  const deps: Dependency[] = [];
-  results.forEach((r) => {
-    if (r.status === 'fulfilled') {
-      deps.push(...r.value);
-    } else {
-      output.appendLine(`[aviso] não foi possível ler um manifesto: ${r.reason}`);
-    }
-  });
-  return deps;
+
+  for (const reason of failures) {
+    output.appendLine(`[aviso] não foi possível ler um manifesto: ${reason}`);
+  }
+  return [...[...jsLocked, ...jsLoose].flatMap((r) => r.dependencies), ...python.flat()];
 }
 
 function publish(findings: Finding[]): void {
@@ -235,7 +257,7 @@ function clearResults(): void {
   findingsByLine.clear();
   tree.update([]);
   status.backgroundColor = undefined;
-  setStatus('$(shield) Ext Scan', 'Clique para ver as vulnerabilidades');
+  setStatus('$(shield) Canary', 'Clique para ver as vulnerabilidades');
 }
 
 function setStatus(text: string, tooltip: string): void {
@@ -282,7 +304,7 @@ class UpgradeActionProvider implements vscode.CodeActionProvider {
       const vuln = finding.vulnerabilities.find((v) => v.id === id);
       if (vuln) {
         const open = new vscode.CodeAction(`Abrir advisory ${vuln.id}`, vscode.CodeActionKind.QuickFix);
-        open.command = { command: 'extScan.openAdvisory', title: 'Abrir advisory', arguments: [vuln.url] };
+        open.command = { command: 'canary.openAdvisory', title: 'Abrir advisory', arguments: [vuln.url] };
         open.diagnostics = [diag];
         actions.push(open);
       }
@@ -315,6 +337,8 @@ function upgradeAction(doc: vscode.TextDocument, finding: Finding, diag: vscode.
   const title =
     `Atualizar ${dep.name} para ${replacement}` +
     (dep.manager === 'uv' ? ' no pyproject.toml (depois rode "uv lock")' : '') +
+    (dep.manager === 'pnpm' ? ' no package.json (depois rode "pnpm install")' : '') +
+    (dep.manager === 'npm' ? ' no package.json (depois rode "npm install")' : '') +
     (unfixed ? ` (${unfixed} vulnerabilidade(s) continuam sem correção)` : '');
   const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
   action.edit = new vscode.WorkspaceEdit();
@@ -338,14 +362,14 @@ function uvLockAction(finding: Finding, diag: vscode.Diagnostic): vscode.CodeAct
   }
   const cmd = `uv lock --upgrade-package ${dep.name}`;
   const action = new vscode.CodeAction(`Rodar "${cmd}" no terminal`, vscode.CodeActionKind.QuickFix);
-  action.command = { command: 'extScan.runInTerminal', title: cmd, arguments: [dep.projectDir, cmd] };
+  action.command = { command: 'canary.runInTerminal', title: cmd, arguments: [dep.projectDir, cmd] };
   action.diagnostics = [diag];
   action.isPreferred = !dep.versionLocation;
   return action;
 }
 
 function runInTerminal(cwd: string, cmd: string): void {
-  const terminal = vscode.window.createTerminal({ name: 'Ext Scan', cwd });
+  const terminal = vscode.window.createTerminal({ name: 'Canary', cwd });
   terminal.show();
   terminal.sendText(cmd);
 }

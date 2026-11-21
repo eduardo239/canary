@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { Dependency, Location } from '../types';
+import { Dependency, Location, ParseResult } from '../types';
 import { versionFromSpec } from '../version';
 
 const DEP_SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
@@ -9,7 +9,7 @@ export interface NpmOptions {
   includeDev: boolean;
 }
 
-async function readOptional(file: string): Promise<string | undefined> {
+export async function readOptional(file: string): Promise<string | undefined> {
   try {
     return await fs.readFile(file, 'utf8');
   } catch {
@@ -22,7 +22,7 @@ async function readOptional(file: string): Promise<string | undefined> {
  * Com lockfile: usa as versões exatas, incluindo dependências transitivas.
  * Sem lockfile: usa as faixas do package.json (versões aproximadas).
  */
-export async function parseNpmProject(dir: string, opts: NpmOptions): Promise<Dependency[]> {
+export async function parseNpmProject(dir: string, opts: NpmOptions): Promise<ParseResult> {
   const pkgPath = path.join(dir, 'package.json');
   const lockPath = path.join(dir, 'package-lock.json');
   const [pkgText, lockText] = await Promise.all([readOptional(pkgPath), readOptional(lockPath)]);
@@ -31,16 +31,16 @@ export async function parseNpmProject(dir: string, opts: NpmOptions): Promise<De
 
   if (lockText) {
     try {
-      return parseLockfile(lockPath, lockText, manifest, opts);
+      return parseLockfile(dir, lockPath, lockText, manifest, opts);
     } catch {
       // lockfile inválido: cai para o package.json
     }
   }
-  return manifest ? manifest.dependencies(opts) : [];
+  return { dependencies: manifest ? manifest.dependencies(opts) : [], members: [] };
 }
 
 /** Índice do package.json com as linhas de cada dependência declarada. */
-class ManifestIndex {
+export class ManifestIndex {
   private readonly json: any;
   private readonly lines: string[];
   /** nome -> { seção, spec, localização } */
@@ -114,10 +114,17 @@ class ManifestIndex {
   }
 }
 
-function parseLockfile(lockPath: string, lockText: string, manifest: ManifestIndex | undefined, opts: NpmOptions): Dependency[] {
+function parseLockfile(
+  dir: string,
+  lockPath: string,
+  lockText: string,
+  manifest: ManifestIndex | undefined,
+  opts: NpmOptions,
+): ParseResult {
   const lock = JSON.parse(lockText);
   const lines = lockText.split(/\r?\n/);
   const out: Dependency[] = [];
+  const members: string[] = [];
 
   const lockLocation = (line: number): Location => {
     const text = lines[line] ?? '';
@@ -164,7 +171,10 @@ function parseLockfile(lockPath: string, lockText: string, manifest: ManifestInd
     for (const [key, entry] of Object.entries<any>(lock.packages)) {
       const idx = key.lastIndexOf('node_modules/');
       if (idx < 0) {
-        continue; // raiz ou pacote de workspace
+        if (key) {
+          members.push(path.join(dir, key)); // pacote de workspace
+        }
+        continue;
       }
       const keyName = key.slice(idx + 'node_modules/'.length);
       push(keyName, entry, keyLines.get(key) ?? 0, key === `node_modules/${keyName}`);
@@ -185,7 +195,7 @@ function parseLockfile(lockPath: string, lockText: string, manifest: ManifestInd
     };
     walk(lock.dependencies, 0);
   }
-  return out;
+  return { dependencies: out, members };
 }
 
 function escapeRe(s: string): string {

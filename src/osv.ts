@@ -93,7 +93,7 @@ export class OsvClient {
     const timeout = AbortSignal.timeout(TIMEOUT_MS);
     const res = await fetch(API + path, {
       ...init,
-      headers: { 'Content-Type': 'application/json', 'User-Agent': 'ext-scan-vscode' },
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'canary-vscode' },
       signal: signal ? anySignal([signal, timeout]) : timeout,
     });
     if (!res.ok) {

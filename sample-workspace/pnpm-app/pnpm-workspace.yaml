@@ -1,0 +1,6 @@
+packages:
+  - "packages/*"
+
+# força uma versão antiga de uma dependência transitiva (só para demonstração)
+overrides:
+  qs: 6.7.0
