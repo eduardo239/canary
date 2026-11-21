@@ -58,6 +58,12 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "canary.exportReport",
+        "title": "Exportar relatório de vulnerabilidades",
+        "category": "Canary",
+        "icon": "$(export)"
+      },
+      {
         "command": "canary.clear",
         "title": "Limpar resultados",
         "category": "Canary",
@@ -83,6 +89,10 @@
         {
           "command": "canary.uvUpgrade",
           "when": "false"
+        },
+        {
+          "command": "canary.exportReport",
+          "when": "canary.hasFindings"
         }
       ],
       "view/title": [
@@ -92,9 +102,14 @@
           "group": "navigation@1"
         },
         {
+          "command": "canary.exportReport",
+          "when": "view == canary.results && canary.hasFindings",
+          "group": "navigation@2"
+        },
+        {
           "command": "canary.clear",
           "when": "view == canary.results",
-          "group": "navigation@2"
+          "group": "navigation@3"
         }
       ]
     },

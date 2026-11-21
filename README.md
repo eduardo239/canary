@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="media/canary-icon2.jpg" alt="Logo do Canary: um canário dentro de um escudo" width="260">
+  <img src="media/canary-logo.jpg" alt="Logo do Canary: um canário em traços neon dentro de um escudo, com o símbolo &lt;/&gt; no topo" width="280">
 </p>
 
 <h1 align="center">Canary</h1>
@@ -44,12 +44,51 @@ pelo `pyproject.toml`, com versões aproximadas.
   depois de `npm install`, `pnpm install` ou `uv lock`.
 - **Monorepos:** em workspaces npm, pnpm ou uv, as dependências diretas de cada projeto apontam para o
   próprio `package.json` ou `pyproject.toml`, e nenhum pacote é contado duas vezes.
+- **Notificação com ações:** ao encontrar vulnerabilidades, uma notificação resume os achados por
+  severidade e oferece os botões **Exportar relatório**, **Escanear novamente** e **Ver detalhes**. Nas
+  verificações manuais ela sempre aparece; nas automáticas, só quando surge um pacote vulnerável novo.
+- **Relatório exportável** em Markdown, CSV ou JSON (veja abaixo).
+
+## Relatório de vulnerabilidades
+
+Para exportar, use o botão **Exportar relatório** da notificação, o ícone de exportar no topo do painel do
+Canary ou o comando `Canary: Exportar relatório de vulnerabilidades`. Escolha o formato e onde salvar; o nome
+sugerido é `canary-report-AAAA-MM-DD.<extensão>`, na raiz do workspace.
+
+| Formato | Indicado para | Conteúdo |
+|---|---|---|
+| **Markdown** | PRs, issues, documentação | Resumo por severidade, tabela de pacotes com a versão recomendada e tabela detalhada das vulnerabilidades |
+| **CSV** | Excel, Google Sheets, LibreOffice | Uma linha por vulnerabilidade, em UTF-8 com BOM (acentos corretos no Excel) |
+| **JSON** | CI e outras ferramentas | Resumo (totais e contagem por severidade) e a lista completa de vulnerabilidades |
+
+Campos de cada vulnerabilidade:
+
+| Campo | Descrição |
+|---|---|
+| Pacote, ecossistema, gerenciador | Ex.: `lodash`, `npm`, `pnpm` |
+| Versão atual | Versão instalada (ou estimada, quando não há lockfile, indicado em "versão estimada") |
+| Versão corrigida | Menor versão que corrige **esta** vulnerabilidade |
+| Versão recomendada | Menor versão que corrige **todas** as vulnerabilidades conhecidas do pacote (a mesma usada pelo Quick Fix) |
+| Declarado como | Especificação no manifesto, ex.: `^4.17.0`, `>=2.25,<3` |
+| Tipo | `direta`, `dev` ou `transitiva` |
+| Severidade | Crítica, alta, média, baixa ou desconhecida |
+| ID, CVE, aliases | Ex.: `GHSA-35jh-r3h4-6jhm`, `CVE-2021-23337` |
+| Resumo e data de publicação | Texto do advisory na OSV.dev |
+| Arquivo e linha | Onde a dependência aparece no workspace |
+| URL | Link para o advisory em `osv.dev` |
+
+O relatório é gerado a partir da última verificação e salvo só no seu disco; nada é enviado para fora.
+
+No CSV, valores que começam com `=`, `+`, `-` ou `@` recebem um apóstrofo na frente (ex.: `'@babel/traverse`).
+Isso impede que planilhas interpretem textos vindos de fora como fórmulas (*CSV injection*) e evita o erro
+`#NAME?` no Excel com pacotes com escopo. No Markdown e no JSON os valores ficam intactos.
 
 ## Comandos
 
 | Comando | Descrição |
 |---|---|
 | `Canary: Verificar vulnerabilidades` | Analisa o workspace agora |
+| `Canary: Exportar relatório de vulnerabilidades` | Salva o resultado da última verificação em Markdown, CSV ou JSON |
 | `Canary: Limpar resultados` | Remove os alertas e esvazia o painel |
 
 ## Configurações
@@ -160,13 +199,15 @@ src/
   parsers/uv.ts      pyproject.toml e uv.lock
   parsers/python.ts  requirements*.txt e leitura de specs PEP 508
   version.ts         comparação e extração de versões
+  report.ts          relatório em Markdown, CSV e JSON
   security.ts        validação de nomes e versões, filtro canary.ignorePackages
   types.ts           tipos compartilhados
 scripts/smoke.js     teste rápido fora do VS Code
 sample-workspace/    projetos de exemplo
 media/
   canary-icon.jpg    logo original (1024×1024, fora do pacote .vsix)
-  canary-icon2.jpg   logo usado no README
+  canary-logo.jpg    logo colorido usado no topo do README
+  canary-icon2.jpg   logo em preto e branco (versão recortada, fora do pacote .vsix)
   icon.png           ícone da extensão no Marketplace (256×256, recorte do logo)
   canary.svg         ícone da barra de atividades (traço monocromático, 24×24)
 ```
@@ -199,7 +240,7 @@ a linha para guardar a posição exata de cada dependência, que é usada pelos 
 - Quick Fix com `overrides` para transitivas do npm e do pnpm.
 - Cache persistente para funcionar offline.
 - Mostrar a cadeia de dependências das transitivas (quem traz o pacote).
-- Exportar relatório (JSON ou SARIF) e um modo CLI para CI.
+- Relatório em SARIF (para o GitHub Code Scanning) e um modo CLI para CI.
 
 ## Licença
 

@@ -5,5 +5,5 @@ node_modules/**
 **/*.map
 tsconfig.json
 sample-workspace/**
-media/canary-icon.jpg
+media/canary-icon*.jpg
 .gitignore
