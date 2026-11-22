@@ -2,7 +2,7 @@
   "name": "canary9",
   "displayName": "Canary9",
   "description": "Early warning for vulnerable dependencies: scans your workspace (npm, pnpm, yarn, pip and uv) against the OSV.dev database.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "eduardo239",
   "repository": {
     "type": "git",
