@@ -1,7 +1,7 @@
 {
   "name": "canary9",
   "displayName": "Canary9",
-  "description": "Alerta precoce de vulnerabilidades: analisa as dependências do workspace (npm, pnpm, yarn, pip e uv) usando a base OSV.dev.",
+  "description": "Early warning for vulnerable dependencies: scans your workspace (npm, pnpm, yarn, pip and uv) against the OSV.dev database.",
   "version": "0.3.0",
   "publisher": "eduardo239",
   "repository": {
@@ -20,11 +20,11 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Em pastas não confiáveis, o Canary só lê os manifestos e mostra os alertas; a ação que roda \"uv lock\" no terminal fica desativada."
+      "description": "In untrusted folders, Canary only reads manifests and shows alerts; the action that runs \"uv lock\" in the terminal is disabled."
     },
     "virtualWorkspaces": {
       "supported": false,
-      "description": "O Canary lê os arquivos do disco local."
+      "description": "Canary reads files from the local disk."
     }
   },
   "categories": [
@@ -55,30 +55,30 @@
     "commands": [
       {
         "command": "canary.scan",
-        "title": "Verificar vulnerabilidades",
+        "title": "Scan for vulnerabilities",
         "category": "Canary",
         "icon": "$(refresh)"
       },
       {
         "command": "canary.exportReport",
-        "title": "Exportar relatório de vulnerabilidades",
+        "title": "Export vulnerability report",
         "category": "Canary",
         "icon": "$(export)"
       },
       {
         "command": "canary.clear",
-        "title": "Limpar resultados",
+        "title": "Clear results",
         "category": "Canary",
         "icon": "$(clear-all)"
       },
       {
         "command": "canary.openAdvisory",
-        "title": "Abrir advisory",
+        "title": "Open advisory",
         "category": "Canary"
       },
       {
         "command": "canary.uvUpgrade",
-        "title": "Atualizar pacote com uv lock",
+        "title": "Upgrade package with uv lock",
         "category": "Canary"
       }
     ],
@@ -128,14 +128,14 @@
       "canary": [
         {
           "id": "canary.results",
-          "name": "Vulnerabilidades"
+          "name": "Vulnerabilities"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "canary.results",
-        "contents": "Nenhuma vulnerabilidade encontrada (ou nenhuma verificação feita ainda).\n[Verificar agora](command:canary.scan)"
+        "contents": "No vulnerabilities found (or no scan has run yet).\n[Scan now](command:canary.scan)"
       }
     ],
     "configuration": {
@@ -144,22 +144,22 @@
         "canary.scanOnStartup": {
           "type": "boolean",
           "default": true,
-          "description": "Verifica o workspace automaticamente ao abrir."
+          "description": "Scan the workspace automatically when it opens."
         },
         "canary.scanOnChange": {
           "type": "boolean",
           "default": true,
-          "description": "Verifica novamente quando manifestos ou lockfiles mudam (package.json, package-lock.json, pnpm-lock.yaml, yarn.lock, requirements*.txt, pyproject.toml, uv.lock)."
+          "description": "Scan again when manifests or lockfiles change (package.json, package-lock.json, pnpm-lock.yaml, yarn.lock, requirements*.txt, pyproject.toml, uv.lock)."
         },
         "canary.includeDevDependencies": {
           "type": "boolean",
           "default": true,
-          "description": "Inclui dependências de desenvolvimento (devDependencies do npm, [dependency-groups] e tool.uv.dev-dependencies)."
+          "description": "Include development dependencies (npm devDependencies, [dependency-groups] and tool.uv.dev-dependencies)."
         },
         "canary.exclude": {
           "type": "string",
           "default": "**/{node_modules,.venv,venv,.git,dist,out,build}/**",
-          "description": "Glob de pastas ignoradas ao procurar manifestos."
+          "description": "Glob of folders to skip when looking for manifests."
         },
         "canary.ignorePackages": {
           "type": "array",
@@ -167,7 +167,7 @@
             "type": "string"
           },
           "default": [],
-          "markdownDescription": "Pacotes que **não** são analisados nem enviados à OSV.dev (útil para pacotes internos/privados). Aceita `*` e prefixo de ecossistema opcional. Ex.: `@minhaempresa/*`, `npm:internal-*`, `pypi:minhaempresa-*`."
+          "markdownDescription": "Packages that are **not** scanned or sent to OSV.dev (useful for internal/private packages). Accepts `*` and an optional ecosystem prefix. E.g. `@mycompany/*`, `npm:internal-*`, `pypi:mycompany-*`."
         }
       }
     }

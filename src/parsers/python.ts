@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import { Dependency } from '../types';
 import { versionFromSpec } from '../version';
 
-/** Normalização de nomes do PEP 503 (Requests_OAuthlib -> requests-oauthlib). */
+/** PEP 503 name normalization (Requests_OAuthlib -> requests-oauthlib). */
 export function normalizePyName(name: string): string {
   return name.toLowerCase().replace(/[-_.]+/g, '-');
 }
@@ -10,18 +10,18 @@ export function normalizePyName(name: string): string {
 const REQ_RE = /^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*(===|==|~=|>=|>|<=|<|!=)?\s*([^\s;,#]+)?/;
 
 export interface RequirementSpec {
-  /** nome normalizado */
+  /** normalized name */
   name: string;
   op?: string;
   rawVersion?: string;
-  /** versão concreta a consultar (quando dá para deduzir) */
+  /** concrete version to query (when it can be inferred) */
   version?: string;
   approximate: boolean;
-  /** posição da versão dentro da string analisada */
+  /** position of the version inside the parsed string */
   versionOffset?: number;
 }
 
-/** Interpreta um requirement PEP 508 ("requests[socks]>=2.25,<3 ; python_version>'3.8'"). */
+/** Parses a PEP 508 requirement ("requests[socks]>=2.25,<3 ; python_version>'3.8'"). */
 export function parseRequirementSpec(text: string): RequirementSpec | undefined {
   const m = REQ_RE.exec(text.trim());
   if (!m) {
@@ -44,8 +44,8 @@ export function parseRequirementSpec(text: string): RequirementSpec | undefined 
 }
 
 /**
- * Lê um requirements*.txt. Usa a versão exata de "==" e, para ">=" e "~=",
- * a versão mínima (marcada como aproximada). Outras formas são ignoradas.
+ * Reads a requirements*.txt. Uses the exact version for "==" and, for ">=" and "~=",
+ * the minimum version (flagged as approximate). Other forms are ignored.
  */
 export async function parseRequirements(file: string): Promise<Dependency[]> {
   const text = await fs.readFile(file, 'utf8');

@@ -1,18 +1,18 @@
 import { normalizePyName } from './parsers/python';
 import { Dependency } from './types';
 
-/** Nome válido no PyPI (PEP 508): letras, dígitos, ".", "_" e "-", começando e terminando com letra ou dígito. */
+/** Valid PyPI name (PEP 508): letters, digits, ".", "_" and "-", starting and ending with a letter or digit. */
 const PYPI_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 
 /**
- * Valida um nome de pacote antes de usá-lo num comando de terminal.
- * Os nomes vêm de arquivos do workspace, que podem ter sido manipulados.
+ * Validates a package name before using it in a terminal command.
+ * Names come from workspace files, which may have been tampered with.
  */
 export function isSafePyPackageName(name: string): boolean {
   return name.length <= 200 && PYPI_NAME.test(name);
 }
 
-/** Versão com caracteres seguros para escrever num manifesto (ex.: "4.17.21", "2.0.0-rc.1", "1.0.post1"). */
+/** Version made of characters that are safe to write into a manifest (e.g. "4.17.21", "2.0.0-rc.1", "1.0.post1"). */
 const VERSION = /^[0-9A-Za-z][0-9A-Za-z.+_~-]{0,63}$/;
 
 export function isSafeVersion(version: string): boolean {
@@ -20,11 +20,11 @@ export function isSafeVersion(version: string): boolean {
 }
 
 /**
- * Compila os padrões de canary.ignorePackages.
- *   "@empresa/*"        qualquer ecossistema
- *   "npm:@empresa/*"    só npm
- *   "pypi:empresa-*"    só PyPI (nomes comparados já normalizados, PEP 503)
- * "*" casa com qualquer sequência de caracteres; a comparação ignora maiúsculas.
+ * Compiles the canary.ignorePackages patterns.
+ *   "@company/*"        any ecosystem
+ *   "npm:@company/*"    npm only
+ *   "pypi:company-*"    PyPI only (names are compared normalized, PEP 503)
+ * "*" matches any sequence of characters; matching is case-insensitive.
  */
 export function compileIgnorePatterns(patterns: readonly string[]): (dep: Pick<Dependency, 'name' | 'ecosystem'>) => boolean {
   const rules = patterns
@@ -42,7 +42,7 @@ export function compileIgnorePatterns(patterns: readonly string[]): (dep: Pick<D
             .join('.*')}$`,
           'i',
         );
-      // para PyPI, o padrão também é normalizado (PEP 503): "Minha_Empresa-*" == "minha-empresa-*"
+      // for PyPI the pattern is normalized too (PEP 503): "My_Company-*" == "my-company-*"
       return { ecosystem, re: toRegex(glob), rePy: toRegex(normalizePyName(glob)) };
     });
   if (!rules.length) {

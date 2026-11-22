@@ -9,17 +9,17 @@ class PackageNode extends vscode.TreeItem {
     super(`${d.name}@${d.version}`, vscode.TreeItemCollapsibleState.Collapsed);
     const n = finding.vulnerabilities.length;
     const where = vscode.workspace.asRelativePath(d.location.file);
-    this.description = `${n} vulnerabilidade${n > 1 ? 's' : ''} · ${d.direct ? 'direta' : 'transitiva'} · ${where}`;
+    this.description = `${n} vulnerabilit${n > 1 ? 'ies' : 'y'} · ${d.direct ? 'direct' : 'transitive'} · ${where}`;
     this.iconPath = severityIcon(maxSeverity);
     this.tooltip = new vscode.MarkdownString(
       `**${d.name}@${d.version}** (${d.ecosystem})\n\n` +
-        `Declarado como \`${d.spec}\` em \`${where}\`` +
-        (d.approximate ? '\n\n_Versão estimada a partir da faixa (sem lockfile)._' : ''),
+        `Declared as \`${d.spec}\` in \`${where}\`` +
+        (d.approximate ? '\n\n_Version estimated from the declared range (no lockfile)._' : ''),
     );
     this.contextValue = 'canary.package';
     this.command = {
       command: 'vscode.open',
-      title: 'Abrir',
+      title: 'Open',
       arguments: [
         vscode.Uri.file(d.location.file),
         { selection: new vscode.Range(d.location.line, d.location.startCol, d.location.line, d.location.endCol) },
@@ -36,10 +36,10 @@ class VulnNode extends vscode.TreeItem {
     this.tooltip = new vscode.MarkdownString(
       `**${vuln.id}** — ${vuln.severity}\n\n${vuln.summary}\n\n` +
         (vuln.aliases.length ? `Aliases: ${vuln.aliases.join(', ')}\n\n` : '') +
-        (vuln.fixedVersion ? `Corrigido em **${vuln.fixedVersion}**` : 'Sem versão corrigida conhecida'),
+        (vuln.fixedVersion ? `Fixed in **${vuln.fixedVersion}**` : 'No known fixed version'),
     );
     this.contextValue = 'canary.vulnerability';
-    this.command = { command: 'canary.openAdvisory', title: 'Abrir advisory', arguments: [vuln.url] };
+    this.command = { command: 'canary.openAdvisory', title: 'Open advisory', arguments: [vuln.url] };
   }
 }
 

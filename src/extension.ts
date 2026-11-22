@@ -23,15 +23,15 @@ let status: vscode.StatusBarItem;
 let output: vscode.OutputChannel;
 let osv: OsvClient;
 
-/** Achados indexados por "arquivo|linha", usados pelo Quick Fix. */
+/** Findings indexed by "file|line", used by the Quick Fix. */
 const findingsByLine = new Map<string, Finding>();
 
-/** Resultado da última verificação concluída (usado pelo relatório). */
+/** Result of the last completed scan (used by the report). */
 let lastScan: { findings: Finding[]; dependencies: number; ignored: number; at: Date } | undefined;
-/** Para notificar verificações automáticas só quando surgirem pacotes vulneráveis novos. */
+/** So automatic scans only notify when new vulnerable packages show up. */
 let notifiedKeys = new Set<string>();
 
-/** Novas tentativas automáticas quando uma verificação automática falha por rede. */
+/** Automatic retries when an automatic scan fails because of the network. */
 const AUTO_RETRY_DELAYS_MS = [15_000, 60_000, 180_000];
 let autoRetryCount = 0;
 let autoRetryTimer: NodeJS.Timeout | undefined;
@@ -47,7 +47,7 @@ export function activate(context: vscode.ExtensionContext): void {
   osv = new OsvClient((message) => output.appendLine(message));
   status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.command = 'canary.results.focus';
-  setStatus('$(shield) Canary', 'Clique para ver as vulnerabilidades');
+  setStatus('$(shield) Canary', 'Click to see the vulnerabilities');
   status.show();
 
   context.subscriptions.push(
@@ -75,7 +75,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
-  // re-scan quando manifestos mudam (salvar no editor, npm install, pip freeze...)
+  // re-scan when manifests change (editor save, npm install, pip freeze...)
   const watcher = vscode.workspace.createFileSystemWatcher(MANIFEST_GLOB);
   let timer: NodeJS.Timeout | undefined;
   const onChange = (uri: vscode.Uri) => {
@@ -105,6 +105,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {}
 
+function plural(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
 function config() {
   return vscode.workspace.getConfiguration('canary');
 }
@@ -119,35 +123,35 @@ async function runScan(manual: boolean): Promise<void> {
     const result = await vscode.window.withProgress(
       {
         location: manual ? vscode.ProgressLocation.Notification : vscode.ProgressLocation.Window,
-        title: 'Canary: verificando dependências',
+        title: 'Canary: scanning dependencies',
         cancellable: manual,
       },
       async (progress, token) => {
         const abort = new AbortController();
         token.onCancellationRequested(() => abort.abort());
 
-        progress.report({ message: 'procurando manifestos…' });
+        progress.report({ message: 'looking for manifests…' });
         const collected = await collectDependencies();
-        // pacotes ignorados nunca são enviados à OSV.dev
+        // ignored packages are never sent to OSV.dev
         const isIgnored = compileIgnorePatterns(config().get<string[]>('ignorePackages', []));
         const deps = collected.filter((d) => !isIgnored(d));
         if (deps.length < collected.length) {
           output.appendLine(
-            `[info] ${collected.length - deps.length} dependência(s) ignorada(s) por canary.ignorePackages (não enviadas à OSV.dev)`,
+            `[info] ${collected.length - deps.length} ${plural(collected.length - deps.length, 'dependency', 'dependencies')} ignored by canary.ignorePackages (not sent to OSV.dev)`,
           );
         }
         if (token.isCancellationRequested) {
           return undefined;
         }
-        progress.report({ message: `consultando OSV.dev (${deps.length} pacotes)…` });
+        progress.report({ message: `querying OSV.dev (${deps.length} packages)…` });
         const start = Date.now();
         const findings = await osv.scan(deps, abort.signal);
         publish(findings);
 
         const total = findings.reduce((n, f) => n + f.vulnerabilities.length, 0);
         output.appendLine(
-          `[${new Date().toLocaleTimeString()}] ${deps.length} dependências analisadas, ` +
-            `${findings.length} pacotes vulneráveis, ${total} vulnerabilidades (${Date.now() - start} ms)`,
+          `[${new Date().toLocaleTimeString()}] ${deps.length} dependencies scanned, ` +
+            `${findings.length} vulnerable packages, ${total} vulnerabilities (${Date.now() - start} ms)`,
         );
         lastScan = { findings, dependencies: deps.length, ignored: collected.length - deps.length, at: new Date() };
         return { findings, total, dependencies: deps.length };
@@ -164,15 +168,15 @@ async function runScan(manual: boolean): Promise<void> {
       return;
     }
     const msg = describeError(err);
-    output.appendLine(`[erro] verificação falhou: ${msg}`);
-    // mantém os resultados anteriores (se houver) e indica o problema na barra de status
-    setStatus('$(warning) Canary: sem conexão', `${msg}\n\nClique para verificar de novo.`);
+    output.appendLine(`[error] scan failed: ${msg}`);
+    // keep the previous results (if any) and show the problem in the status bar
+    setStatus('$(warning) Canary: no connection', `${msg}\n\nClick to scan again.`);
     status.command = 'canary.scan';
     if (manual) {
-      void vscode.window.showErrorMessage(`Canary: falha na verificação — ${msg}`, 'Tentar novamente', 'Ver log').then((choice) => {
-        if (choice === 'Tentar novamente') {
+      void vscode.window.showErrorMessage(`Canary: scan failed — ${msg}`, 'Try again', 'Show log').then((choice) => {
+        if (choice === 'Try again') {
           void runScan(true);
-        } else if (choice === 'Ver log') {
+        } else if (choice === 'Show log') {
           output.show(true);
         }
       });
@@ -188,16 +192,16 @@ async function runScan(manual: boolean): Promise<void> {
   }
 }
 
-/** Verificação automática falhou: tenta de novo em silêncio, com intervalos crescentes. */
+/** Automatic scan failed: silently retries, with increasing intervals. */
 function scheduleAutoRetry(): void {
   clearTimeout(autoRetryTimer);
   const delay = AUTO_RETRY_DELAYS_MS[autoRetryCount];
   if (delay === undefined) {
-    output.appendLine('[erro] novas tentativas automáticas esgotadas; use "Canary: Verificar vulnerabilidades".');
+    output.appendLine('[error] automatic retries exhausted; use "Canary: Scan for vulnerabilities".');
     return;
   }
   autoRetryCount++;
-  output.appendLine(`[info] nova verificação automática em ${delay / 1000}s`);
+  output.appendLine(`[info] next automatic scan in ${delay / 1000}s`);
   autoRetryTimer = setTimeout(() => void runScan(false), delay);
 }
 
@@ -239,13 +243,13 @@ async function collectDependencies(): Promise<Dependency[]> {
     return results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : (failures.push(r.reason), [])));
   };
 
-  // 1) projetos JS com lockfile (pnpm e yarn têm prioridade sobre o package-lock.json na mesma pasta)
+  // 1) JS projects with a lockfile (pnpm and yarn take precedence over package-lock.json in the same folder)
   const jsLocked = await settle([
     ...[...pnpmLockDirs].map((d) => parsePnpmProject(d, { includeDev })),
     ...[...yarnLockDirs].filter((d) => !pnpmLockDirs.has(d)).map((d) => parseYarnProject(d, { includeDev })),
     ...[...npmLockDirs].filter((d) => !pnpmLockDirs.has(d) && !yarnLockDirs.has(d)).map((d) => parseNpmProject(d, { includeDev })),
   ]);
-  // 2) package.json sem lockfile, ignorando membros de workspace já cobertos por um lockfile
+  // 2) package.json without a lockfile, skipping workspace members already covered by a lockfile
   const members = new Set(jsLocked.flatMap((r) => r.members));
   const jsLoose = await settle(
     [...npmDirs]
@@ -253,7 +257,7 @@ async function collectDependencies(): Promise<Dependency[]> {
       .map((d) => parseNpmProject(d, { includeDev })),
   );
 
-  // membros de um workspace uv já estão no uv.lock da raiz: não analisar de novo
+  // members of a uv workspace are already in the root uv.lock: do not scan them again
   const coveredByLock = (dir: string) =>
     [...uvLockDirs].some((lockDir) => lockDir !== dir && (dir + path.sep).startsWith(lockDir + path.sep));
   const uvDirs = new Set([...uvLockDirs, ...[...pyprojectDirs].filter((d) => !uvLockDirs.has(d) && !coveredByLock(d))]);
@@ -263,7 +267,7 @@ async function collectDependencies(): Promise<Dependency[]> {
   ]);
 
   for (const reason of failures) {
-    output.appendLine(`[aviso] não foi possível ler um manifesto: ${reason}`);
+    output.appendLine(`[warn] could not read a manifest: ${reason}`);
   }
   return [...[...jsLocked, ...jsLoose].flatMap((r) => r.dependencies), ...python.flat()];
 }
@@ -279,9 +283,9 @@ function publish(findings: Finding[]): void {
     const range = new vscode.Range(d.location.line, d.location.startCol, d.location.line, d.location.endCol);
     const list = byFile.get(d.location.file) ?? [];
     for (const v of f.vulnerabilities) {
-      const fix = v.fixedVersion ? ` Corrigido em ${v.fixedVersion}.` : ' Sem versão corrigida conhecida.';
-      const approx = d.approximate ? ` (versão estimada a partir de "${d.spec}")` : '';
-      const via = d.direct ? '' : ' [transitiva]';
+      const fix = v.fixedVersion ? ` Fixed in ${v.fixedVersion}.` : ' No known fixed version.';
+      const approx = d.approximate ? ` (version estimated from "${d.spec}")` : '';
+      const via = d.direct ? '' : ' [transitive]';
       const diag = new vscode.Diagnostic(
         range,
         `${d.name}@${d.version}${approx}${via}: ${v.summary} [${v.severity}].${fix}`,
@@ -303,7 +307,7 @@ function publish(findings: Finding[]): void {
 
   const total = findings.reduce((n, f) => n + f.vulnerabilities.length, 0);
   if (!total) {
-    setStatus('$(shield) 0 vulnerabilidades', 'Nenhuma vulnerabilidade conhecida encontrada');
+    setStatus('$(shield) 0 vulnerabilities', 'No known vulnerabilities found');
     status.backgroundColor = undefined;
     return;
   }
@@ -311,7 +315,7 @@ function publish(findings: Finding[]): void {
     (m, s) => (SEVERITY_ORDER[s] > SEVERITY_ORDER[m] ? s : m),
     'UNKNOWN',
   );
-  setStatus(`$(shield) ${total} vulnerabilidade${total > 1 ? 's' : ''}`, `Pior severidade: ${worst}. Clique para detalhes.`);
+  setStatus(`$(shield) ${total} vulnerabilit${total > 1 ? 'ies' : 'y'}`, `Worst severity: ${worst}. Click for details.`);
   status.backgroundColor = new vscode.ThemeColor(
     SEVERITY_ORDER[worst] >= SEVERITY_ORDER.HIGH ? 'statusBarItem.errorBackground' : 'statusBarItem.warningBackground',
   );
@@ -327,12 +331,12 @@ function clearResults(): void {
   void vscode.commands.executeCommand('setContext', 'canary.hasFindings', false);
   status.command = 'canary.results.focus';
   status.backgroundColor = undefined;
-  setStatus('$(shield) Canary', 'Clique para ver as vulnerabilidades');
+  setStatus('$(shield) Canary', 'Click to see the vulnerabilities');
 }
 
 /**
- * Contador sobre o ícone do Canary na barra de atividades: quantidade de pacotes vulneráveis
- * (as mesmas entradas do painel). Sem valor, o VS Code esconde o contador.
+ * Badge over the Canary icon in the activity bar: number of vulnerable packages
+ * (the same entries as the panel). With no value, VS Code hides the badge.
  */
 function updateBadge(findings: Finding[]): void {
   const packages = findings.length;
@@ -344,8 +348,8 @@ function updateBadge(findings: Finding[]): void {
   treeView.badge = {
     value: packages,
     tooltip:
-      `${packages} pacote${packages > 1 ? 's' : ''} com vulnerabilidades ` +
-      `(${vulns} vulnerabilidade${vulns > 1 ? 's' : ''} no total)`,
+      `${packages} package${packages > 1 ? 's' : ''} with vulnerabilities ` +
+      `(${vulns} vulnerabilit${vulns > 1 ? 'ies' : 'y'} in total)`,
   };
 }
 
@@ -364,7 +368,7 @@ function toDiagnosticSeverity(s: Severity): vscode.DiagnosticSeverity {
   return vscode.DiagnosticSeverity.Information;
 }
 
-/** Quick Fix: atualiza a versão para a menor que corrige todas as vulnerabilidades conhecidas do pacote. */
+/** Quick Fix: bumps the version to the lowest one that fixes all known vulnerabilities of the package. */
 class UpgradeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(doc: vscode.TextDocument, _range: vscode.Range, ctx: vscode.CodeActionContext): vscode.CodeAction[] {
     const actions: vscode.CodeAction[] = [];
@@ -392,7 +396,7 @@ class UpgradeActionProvider implements vscode.CodeActionProvider {
       const id = typeof diag.code === 'object' ? String(diag.code.value) : undefined;
       const vuln = finding.vulnerabilities.find((v) => v.id === id);
       if (vuln) {
-        const open = new vscode.CodeAction(`Abrir advisory ${vuln.id}`, vscode.CodeActionKind.QuickFix);
+        const open = new vscode.CodeAction(`Open advisory ${vuln.id}`, vscode.CodeActionKind.QuickFix);
         open.command = { command: 'canary.openAdvisory', title: 'Abrir advisory', arguments: [vuln.url] };
         open.diagnostics = [diag];
         actions.push(open);
@@ -405,7 +409,7 @@ class UpgradeActionProvider implements vscode.CodeActionProvider {
 function upgradeAction(doc: vscode.TextDocument, finding: Finding, diag: vscode.Diagnostic): vscode.CodeAction | undefined {
   const dep = finding.dependency;
   if (!dep.versionLocation) {
-    return undefined; // transitiva: precisa atualizar quem a puxa (ou usar "overrides")
+    return undefined; // transitive: the package that pulls it in must be updated (or use "overrides")
   }
   const target = recommendedVersion(finding);
   if (!target) {
@@ -423,12 +427,12 @@ function upgradeAction(doc: vscode.TextDocument, finding: Finding, diag: vscode.
   }
 
   const title =
-    `Atualizar ${dep.name} para ${replacement}` +
-    (dep.manager === 'uv' ? ' no pyproject.toml (depois rode "uv lock")' : '') +
-    (dep.manager === 'pnpm' ? ' no package.json (depois rode "pnpm install")' : '') +
-    (dep.manager === 'yarn' ? ' no package.json (depois rode "yarn install")' : '') +
-    (dep.manager === 'npm' ? ' no package.json (depois rode "npm install")' : '') +
-    (unfixed ? ` (${unfixed} vulnerabilidade(s) continuam sem correção)` : '');
+    `Update ${dep.name} to ${replacement}` +
+    (dep.manager === 'uv' ? ' in pyproject.toml (then run "uv lock")' : '') +
+    (dep.manager === 'pnpm' ? ' in package.json (then run "pnpm install")' : '') +
+    (dep.manager === 'yarn' ? ' in package.json (then run "yarn install")' : '') +
+    (dep.manager === 'npm' ? ' in package.json (then run "npm install")' : '') +
+    (unfixed ? ` (${unfixed} ${plural(unfixed, 'vulnerability', 'vulnerabilities')} still without a fix)` : '');
   const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
   action.edit = new vscode.WorkspaceEdit();
   action.edit.replace(doc.uri, range, replacement);
@@ -438,15 +442,15 @@ function upgradeAction(doc: vscode.TextDocument, finding: Finding, diag: vscode.
 }
 
 /**
- * uv: "uv lock --upgrade-package <nome>" funciona também para dependências transitivas,
- * desde que as restrições do pyproject.toml permitam a versão corrigida.
+ * uv: "uv lock --upgrade-package <name>" also works for transitive dependencies,
+ * as long as the pyproject.toml constraints allow the fixed version.
  */
 function uvLockAction(finding: Finding, diag: vscode.Diagnostic): vscode.CodeAction | undefined {
   const dep = finding.dependency;
   if (dep.manager !== 'uv' || !dep.projectDir || dep.approximate) {
     return undefined;
   }
-  // roda um comando no terminal: só em pastas confiáveis e com nome de pacote válido
+  // runs a command in the terminal: only in trusted folders and with a valid package name
   if (!vscode.workspace.isTrusted || !isSafePyPackageName(dep.name)) {
     return undefined;
   }
@@ -454,7 +458,7 @@ function uvLockAction(finding: Finding, diag: vscode.Diagnostic): vscode.CodeAct
     return undefined;
   }
   const action = new vscode.CodeAction(
-    `Rodar "uv lock --upgrade-package ${dep.name}" no terminal`,
+    `Run "uv lock --upgrade-package ${dep.name}" in the terminal`,
     vscode.CodeActionKind.QuickFix,
   );
   action.command = { command: 'canary.uvUpgrade', title: 'uv lock --upgrade-package', arguments: [dep.projectDir, dep.name] };
@@ -464,20 +468,20 @@ function uvLockAction(finding: Finding, diag: vscode.Diagnostic): vscode.CodeAct
 }
 
 /**
- * Executa "uv lock --upgrade-package <pacote>". Recebe só a pasta e o nome (nunca um comando pronto)
- * e revalida tudo, porque comandos podem ser chamados com argumentos arbitrários.
+ * Runs "uv lock --upgrade-package <package>". Takes only the folder and the name (never a ready-made command)
+ * and revalidates everything, because commands can be invoked with arbitrary arguments.
  */
 function uvUpgrade(projectDir: unknown, packageName: unknown): void {
   if (!vscode.workspace.isTrusted) {
-    void vscode.window.showWarningMessage('Canary: confie nesta pasta (Workspace Trust) para rodar comandos no terminal.');
+    void vscode.window.showWarningMessage('Canary: trust this folder (Workspace Trust) to run commands in the terminal.');
     return;
   }
   if (typeof projectDir !== 'string' || typeof packageName !== 'string' || !isSafePyPackageName(packageName)) {
-    void vscode.window.showErrorMessage('Canary: nome de pacote inválido; comando não executado.');
+    void vscode.window.showErrorMessage('Canary: invalid package name; command not run.');
     return;
   }
   if (!vscode.workspace.getWorkspaceFolder(vscode.Uri.file(projectDir))) {
-    void vscode.window.showErrorMessage('Canary: a pasta do projeto está fora do workspace; comando não executado.');
+    void vscode.window.showErrorMessage('Canary: the project folder is outside the workspace; command not run.');
     return;
   }
   const terminal = vscode.window.createTerminal({ name: 'Canary', cwd: projectDir });
@@ -486,16 +490,16 @@ function uvUpgrade(projectDir: unknown, packageName: unknown): void {
 }
 
 // ---------------------------------------------------------------------------
-// Notificação e relatório
+// Notification and report
 // ---------------------------------------------------------------------------
 
-const ACTION_EXPORT = 'Exportar relatório';
-const ACTION_RESCAN = 'Escanear novamente';
-const ACTION_DETAILS = 'Ver detalhes';
+const ACTION_EXPORT = 'Export report';
+const ACTION_RESCAN = 'Scan again';
+const ACTION_DETAILS = 'View details';
 
 /**
- * Verificação manual: sempre avisa. Automática (ao abrir ou ao mudar um lockfile): só avisa
- * quando aparece um pacote vulnerável que ainda não tinha sido notificado.
+ * Manual scan: always notifies. Automatic scan (on open or when a lockfile changes): only notifies
+ * when a vulnerable package shows up that has not been notified yet.
  */
 function notifyResult(findings: Finding[], total: number, dependencies: number, manual: boolean): void {
   const keys = new Set(findings.map((f) => `${f.dependency.location.file}|${f.dependency.name}@${f.dependency.version}`));
@@ -505,7 +509,7 @@ function notifyResult(findings: Finding[], total: number, dependencies: number, 
   if (!findings.length) {
     if (manual) {
       void vscode.window
-        .showInformationMessage(`Canary: nenhuma vulnerabilidade conhecida em ${dependencies} dependência(s).`, ACTION_RESCAN)
+        .showInformationMessage(`Canary: no known vulnerabilities in ${dependencies} ${plural(dependencies, 'dependency', 'dependencies')}.`, ACTION_RESCAN)
         .then(handleAction);
     }
     return;
@@ -518,16 +522,16 @@ function notifyResult(findings: Finding[], total: number, dependencies: number, 
     .reduce<Record<string, number>>((acc, v) => ((acc[v.severity] = (acc[v.severity] ?? 0) + 1), acc), {});
   const parts = (
     [
-      ['CRITICAL', 'crítica'],
-      ['HIGH', 'alta'],
-      ['MODERATE', 'média'],
-      ['LOW', 'baixa'],
+      ['CRITICAL', 'critical'],
+      ['HIGH', 'high'],
+      ['MODERATE', 'medium'],
+      ['LOW', 'low'],
     ] as [Severity, string][]
   )
     .filter(([s]) => counts[s])
-    .map(([s, label]) => `${counts[s]} ${label}${counts[s] > 1 ? 's' : ''}`);
+    .map(([s, label]) => `${counts[s]} ${label}`);
   const message =
-    `Canary: ${findings.length} pacote(s) com ${total} vulnerabilidade(s)` + (parts.length ? ` — ${parts.join(', ')}.` : '.');
+    `Canary: ${findings.length} ${plural(findings.length, 'package', 'packages')} with ${total} ${plural(total, 'vulnerability', 'vulnerabilities')}` + (parts.length ? ` — ${parts.join(', ')}.` : '.');
 
   const worstSeverity = findings.map((f) => maxSeverity(f.vulnerabilities)).reduce<Severity>(
     (m, s) => (SEVERITY_ORDER[s] > SEVERITY_ORDER[m] ? s : m),
@@ -551,15 +555,15 @@ function handleAction(choice: string | undefined): void {
 }
 
 const FORMATS: { format: ReportFormat; label: string; description: string; ext: string; filter: string }[] = [
-  { format: 'markdown', label: '$(markdown) Markdown', description: 'Legível, bom para PRs, issues e documentação', ext: 'md', filter: 'Markdown' },
-  { format: 'csv', label: '$(table) CSV', description: 'Para abrir no Excel, Google Sheets ou LibreOffice', ext: 'csv', filter: 'CSV' },
-  { format: 'json', label: '$(json) JSON', description: 'Para integrar com outras ferramentas e CI', ext: 'json', filter: 'JSON' },
+  { format: 'markdown', label: '$(markdown) Markdown', description: 'Readable, good for PRs, issues and documentation', ext: 'md', filter: 'Markdown' },
+  { format: 'csv', label: '$(table) CSV', description: 'To open in Excel, Google Sheets or LibreOffice', ext: 'csv', filter: 'CSV' },
+  { format: 'json', label: '$(json) JSON', description: 'To integrate with other tools and CI', ext: 'json', filter: 'JSON' },
 ];
 
 async function exportReport(): Promise<void> {
   if (!lastScan) {
     const choice = await vscode.window.showInformationMessage(
-      'Canary: nenhuma verificação concluída ainda. Verificar agora?',
+      'Canary: no scan has completed yet. Scan now?',
       ACTION_RESCAN,
     );
     if (choice === ACTION_RESCAN) {
@@ -569,8 +573,8 @@ async function exportReport(): Promise<void> {
   }
   const scan = lastScan;
   const picked = await vscode.window.showQuickPick(FORMATS, {
-    title: 'Canary: exportar relatório de vulnerabilidades',
-    placeHolder: 'Escolha o formato',
+    title: 'Canary: export vulnerability report',
+    placeHolder: 'Choose the format',
   });
   if (!picked) {
     return;
@@ -584,8 +588,8 @@ async function exportReport(): Promise<void> {
   const target = await vscode.window.showSaveDialog({
     defaultUri,
     filters: { [picked.filter]: [picked.ext] },
-    saveLabel: 'Exportar',
-    title: 'Salvar relatório do Canary',
+    saveLabel: 'Export',
+    title: 'Save Canary report',
   });
   if (!target) {
     return;
@@ -601,22 +605,22 @@ async function exportReport(): Promise<void> {
   try {
     await vscode.workspace.fs.writeFile(target, Buffer.from(content, 'utf8'));
   } catch (err: any) {
-    void vscode.window.showErrorMessage(`Canary: não foi possível salvar o relatório — ${err?.message ?? err}`);
+    void vscode.window.showErrorMessage(`Canary: could not save the report — ${err?.message ?? err}`);
     return;
   }
-  output.appendLine(`[info] relatório exportado: ${target.fsPath}`);
+  output.appendLine(`[info] report exported: ${target.fsPath}`);
 
-  const open = picked.format === 'markdown' ? 'Abrir prévia' : 'Abrir';
+  const open = picked.format === 'markdown' ? 'Open preview' : 'Open';
   const choice = await vscode.window.showInformationMessage(
-    `Canary: relatório salvo em ${vscode.workspace.asRelativePath(target)}.`,
+    `Canary: report saved to ${vscode.workspace.asRelativePath(target)}.`,
     open,
-    'Mostrar na pasta',
+    'Reveal in folder',
   );
-  if (choice === 'Abrir prévia') {
+  if (choice === 'Open preview') {
     await vscode.commands.executeCommand('markdown.showPreview', target);
-  } else if (choice === 'Abrir') {
+  } else if (choice === 'Open') {
     await vscode.window.showTextDocument(target);
-  } else if (choice === 'Mostrar na pasta') {
+  } else if (choice === 'Reveal in folder') {
     await vscode.commands.executeCommand('revealFileInOS', target);
   }
 }

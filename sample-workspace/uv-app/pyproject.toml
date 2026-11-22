@@ -17,5 +17,5 @@ dev = [
 ]
 
 [tool.uv]
-# força uma versão antiga de uma dependência transitiva (só para demonstração)
+# pins an old version of a transitive dependency (for demonstration only)
 constraint-dependencies = ["urllib3==1.26.4"]

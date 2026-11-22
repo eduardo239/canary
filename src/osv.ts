@@ -8,7 +8,7 @@ const API = 'https://api.osv.dev/v1';
 const BATCH_SIZE = 500;
 const DETAIL_CONCURRENCY = 8;
 const TIMEOUT_MS = 30_000;
-const RETRY_ATTEMPTS = 4; // 1 tentativa + 3 novas (esperas de ~1s, 2s, 4s)
+const RETRY_ATTEMPTS = 4; // 1 attempt + 3 retries (waits of ~1s, 2s, 4s)
 const RETRY_BASE_MS = 1_000;
 
 interface OsvVuln {
@@ -27,15 +27,15 @@ interface OsvVuln {
   }[];
 }
 
-/** Cliente da API OSV.dev (https://google.github.io/osv.dev/api/). Mantém cache dos detalhes. */
+/** OSV.dev API client (https://google.github.io/osv.dev/api/). Caches vulnerability details. */
 export class OsvClient {
   private readonly cache = new Map<string, OsvVuln>();
 
-  /** Recebe avisos de novas tentativas e falhas parciais (para o log da extensão). */
+  /** Receives retry notices and partial failures (for the extension log). */
   constructor(private readonly log: (message: string) => void = () => {}) {}
 
   async scan(deps: Dependency[], signal?: AbortSignal): Promise<Finding[]> {
-    // agrupa dependências iguais para não repetir consultas
+    // group identical dependencies so queries are not repeated
     const groups = new Map<string, Dependency[]>();
     for (const d of deps) {
       const key = `${d.ecosystem}|${d.name}|${d.version}`;
@@ -65,7 +65,7 @@ export class OsvClient {
       });
     }
 
-    // busca detalhes só do que não está em cache (ou foi modificado)
+    // fetch details only for what is not cached (or was modified)
     const toFetch = new Set<string>();
     for (const list of idsByKey.values()) {
       for (const v of list) {
@@ -75,7 +75,7 @@ export class OsvClient {
         }
       }
     }
-    // falha nos detalhes de uma vulnerabilidade não derruba a verificação inteira
+    // a failure fetching one vulnerability's details does not abort the whole scan
     const missing = new Set<string>();
     await mapLimit([...toFetch], DETAIL_CONCURRENCY, async (id) => {
       try {
@@ -86,7 +86,7 @@ export class OsvClient {
           throw err;
         }
         missing.add(id);
-        this.log(`[aviso] detalhes de ${id} indisponíveis: ${describeError(err)}`);
+        this.log(`[warn] details for ${id} unavailable: ${describeError(err)}`);
       }
     });
 
@@ -116,7 +116,7 @@ export class OsvClient {
           signal: signal ? anySignal([signal, timeout]) : timeout,
         });
         if (!res.ok) {
-          throw new HttpError(res.status, `OSV.dev respondeu ${res.status} ${res.statusText} em ${path}`);
+          throw new HttpError(res.status, `OSV.dev responded ${res.status} ${res.statusText} for ${path}`);
         }
         return (await res.json()) as T;
       },
@@ -125,15 +125,15 @@ export class OsvClient {
         baseDelayMs: RETRY_BASE_MS,
         signal,
         onRetry: (attempt, delay, err) =>
-          this.log(`[rede] ${path}: ${describeError(err)} — nova tentativa ${attempt + 1}/${RETRY_ATTEMPTS} em ${(delay / 1000).toFixed(1)}s`),
+          this.log(`[network] ${path}: ${describeError(err)} — retry ${attempt + 1}/${RETRY_ATTEMPTS} in ${(delay / 1000).toFixed(1)}s`),
       },
     );
   }
 }
 
-/** Vulnerabilidade cujos detalhes não puderam ser obtidos: mantém o alerta, sem severidade nem correção. */
+/** Vulnerability whose details could not be fetched: keeps the alert, without severity or fix. */
 function placeholder(id: string): OsvVuln {
-  return { id, summary: 'Detalhes indisponíveis (falha de rede ao consultar a OSV.dev); verifique de novo mais tarde.' };
+  return { id, summary: 'Details unavailable (network failure while querying OSV.dev); scan again later.' };
 }
 
 function toVulnerability(v: OsvVuln, name: string, ecosystem: Ecosystem, version: string): Vulnerability {
@@ -153,7 +153,7 @@ function toVulnerability(v: OsvVuln, name: string, ecosystem: Ecosystem, version
       }
     }
   }
-  // a versão corrigida pode ser escrita no manifesto pelo Quick Fix: só aceita caracteres de versão
+  // the fixed version may be written into the manifest by the Quick Fix: only accept version characters
   const fixedVersion = fixes
     .filter((f) => isSafeVersion(f) && compareVersions(f, version) > 0)
     .sort(compareVersions)[0];
@@ -183,7 +183,7 @@ function normalizeSeverity(raw: string | undefined, scores: OsvVuln['severity'])
     case 'LOW':
       return 'LOW';
   }
-  // fallback: nota numérica da CVSS, quando vier como número
+  // fallback: numeric CVSS score, when it comes as a number
   const numeric = scores?.map((s) => parseFloat(s.score)).find((n) => !isNaN(n));
   if (numeric !== undefined) {
     return numeric >= 9 ? 'CRITICAL' : numeric >= 7 ? 'HIGH' : numeric >= 4 ? 'MODERATE' : 'LOW';
@@ -191,7 +191,7 @@ function normalizeSeverity(raw: string | undefined, scores: OsvVuln['severity'])
   return 'UNKNOWN';
 }
 
-/** Remove duplicatas (ex.: GHSA-xxx e PYSEC-yyy descrevendo o mesmo CVE), preferindo a que tem severidade. */
+/** Removes duplicates (e.g. GHSA-xxx and PYSEC-yyy describing the same CVE), preferring the one with a severity. */
 function dedupe(vulns: Vulnerability[]): Vulnerability[] {
   const sorted = [...vulns].sort((a, b) => SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity]);
   const seen = new Set<string>();

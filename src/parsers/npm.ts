@@ -18,9 +18,9 @@ export async function readOptional(file: string): Promise<string | undefined> {
 }
 
 /**
- * Lê um projeto npm (pasta com package.json e/ou package-lock.json).
- * Com lockfile: usa as versões exatas, incluindo dependências transitivas.
- * Sem lockfile: usa as faixas do package.json (versões aproximadas).
+ * Reads an npm project (folder with package.json and/or package-lock.json).
+ * With a lockfile: uses exact versions, including transitive dependencies.
+ * Without a lockfile: uses the package.json ranges (approximate versions).
  */
 export async function parseNpmProject(dir: string, opts: NpmOptions): Promise<ParseResult> {
   const pkgPath = path.join(dir, 'package.json');
@@ -33,17 +33,17 @@ export async function parseNpmProject(dir: string, opts: NpmOptions): Promise<Pa
     try {
       return parseLockfile(dir, lockPath, lockText, manifest, opts);
     } catch {
-      // lockfile inválido: cai para o package.json
+      // invalid lockfile: fall back to package.json
     }
   }
   return { dependencies: manifest ? manifest.dependencies(opts) : [], members: [] };
 }
 
-/** Índice do package.json com as linhas de cada dependência declarada. */
+/** package.json index with the line of each declared dependency. */
 export class ManifestIndex {
   private readonly json: any;
   private readonly lines: string[];
-  /** nome -> { seção, spec, localização } */
+  /** name -> { section, spec, location } */
   readonly declared = new Map<string, { section: string; spec: string; location: Location; versionLocation?: Location }>();
 
   constructor(readonly file: string, text: string) {
@@ -160,7 +160,7 @@ function parseLockfile(
   };
 
   if (lock.packages && typeof lock.packages === 'object') {
-    // lockfileVersion 2 e 3
+    // lockfileVersion 2 and 3
     const keyLines = new Map<string, number>();
     lines.forEach((l, i) => {
       const m = /^\s*"((?:[^"]*\/)?node_modules\/[^"]+)"\s*:\s*\{/.exec(l);
@@ -172,7 +172,7 @@ function parseLockfile(
       const idx = key.lastIndexOf('node_modules/');
       if (idx < 0) {
         if (key) {
-          members.push(path.join(dir, key)); // pacote de workspace
+          members.push(path.join(dir, key)); // workspace package
         }
         continue;
       }
@@ -180,7 +180,7 @@ function parseLockfile(
       push(keyName, entry, keyLines.get(key) ?? 0, key === `node_modules/${keyName}`);
     }
   } else if (lock.dependencies && typeof lock.dependencies === 'object') {
-    // lockfileVersion 1 (árvore recursiva)
+    // lockfileVersion 1 (recursive tree)
     const firstLine = (name: string) => {
       const re = new RegExp(`^\\s*"${escapeRe(name)}"\\s*:\\s*\\{`);
       return Math.max(lines.findIndex((l) => re.test(l)), 0);

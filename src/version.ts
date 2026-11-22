@@ -1,6 +1,6 @@
 /**
- * Comparação de versões simplificada (suficiente para semver e a maioria das versões PEP 440).
- * Compara segmentos numéricos; uma versão com sufixo de pré-release é menor que a versão final.
+ * Simplified version comparison (enough for semver and most PEP 440 versions).
+ * Compares numeric segments; a version with a pre-release suffix is lower than the final version.
  */
 export function compareVersions(a: string, b: string): number {
   const parse = (v: string) => {
@@ -32,7 +32,7 @@ export function compareVersions(a: string, b: string): number {
   return pa.pre < pb.pre ? -1 : 1;
 }
 
-/** Extrai uma versão concreta de uma especificação ("^1.2.3" -> "1.2.3", "~1.2" -> "1.2.0"). */
+/** Extracts a concrete version from a spec ("^1.2.3" -> "1.2.3", "~1.2" -> "1.2.0"). */
 export function versionFromSpec(spec: string): string | undefined {
   const s = spec.trim();
   if (!s || /^(file:|link:|git|github:|http|workspace:|npm:|\*|latest|x$)/i.test(s)) {

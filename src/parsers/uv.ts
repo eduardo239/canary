@@ -7,7 +7,7 @@ export interface UvOptions {
   includeDev: boolean;
 }
 
-/** Uma dependência declarada no pyproject.toml, com a posição exata da string. */
+/** A dependency declared in pyproject.toml, with the exact position of its string. */
 interface Declared {
   name: string;
   raw: string;
@@ -20,9 +20,9 @@ interface Declared {
 }
 
 /**
- * Projeto uv (ou qualquer projeto PEP 621): pyproject.toml + uv.lock opcional.
- * Com uv.lock: versões exatas de todas as dependências, inclusive transitivas.
- * Sem uv.lock: usa os specifiers do pyproject.toml (versões aproximadas).
+ * uv project (or any PEP 621 project): pyproject.toml + optional uv.lock.
+ * With uv.lock: exact versions of all dependencies, including transitive ones.
+ * Without uv.lock: uses the pyproject.toml specifiers (approximate versions).
  */
 export async function parseUvProject(dir: string, opts: UvOptions): Promise<Dependency[]> {
   const pyprojectPath = path.join(dir, 'pyproject.toml');
@@ -63,10 +63,10 @@ async function readOptional(file: string): Promise<string | undefined> {
 // ---------------------------------------------------------------------------
 
 /**
- * Leitor de TOML restrito ao necessário: arrays de strings em
+ * TOML reader limited to what is needed: string arrays in
  *   [project] dependencies, [project.optional-dependencies] *,
  *   [dependency-groups] * e [tool.uv] dev-dependencies.
- * Guarda a linha/coluna de cada string para os diagnostics e o Quick Fix.
+ * Keeps the line/column of each string for diagnostics and the Quick Fix.
  */
 export function parsePyproject(file: string, text: string): Declared[] {
   const out: Declared[] = [];
@@ -104,7 +104,7 @@ export function parsePyproject(file: string, text: string): Declared[] {
     scan(line, lineNo, 0);
   });
 
-  /** Percorre a linha coletando strings e contando colchetes fora delas. */
+  /** Walks the line collecting strings and counting brackets outside of them. */
   function scan(line: string, lineNo: number, from: number) {
     let braces = 0;
     for (let i = from; i < line.length && inArray; i++) {
@@ -174,7 +174,7 @@ interface LockPackage {
   devDeps: string[];
 }
 
-/** Leitor linha a linha do uv.lock (formato estável e gerado pela ferramenta). */
+/** Line-by-line uv.lock reader (stable, tool-generated format). */
 export function parseUvLock(lockPath: string, text: string, declared: Declared[], opts: UvOptions, dir: string): Dependency[] {
   const packages: LockPackage[] = [];
   let cur: LockPackage | undefined;
@@ -239,11 +239,11 @@ export function parseUvLock(lockPath: string, text: string, declared: Declared[]
   function startArray(line: string, target: 'deps' | 'dev') {
     collectNames(line, target === 'deps' ? cur!.deps : cur!.devDeps);
     if (!/\]\s*$/.test(line)) {
-      collecting = target; // array multilinha: termina numa linha que começa com "]"
+      collecting = target; // multi-line array: ends at a line that starts with "]"
     }
   }
 
-  // projetos locais (raiz, membros de workspace) definem o que é dependência direta
+  // local projects (root, workspace members) define what is a direct dependency
   const isLocal = (p: LockPackage) => /\b(editable|virtual|directory|path)\s*=/.test(p.source);
   const directDeps = new Set<string>();
   const directDev = new Set<string>();
@@ -261,7 +261,7 @@ export function parseUvLock(lockPath: string, text: string, declared: Declared[]
   const out: Dependency[] = [];
   for (const p of packages) {
     if (!p.name || !p.version || isLocal(p) || !/\bregistry\s*=/.test(p.source)) {
-      continue; // pacotes git/url/locais não são consultados
+      continue; // git/url/local packages are not queried
     }
     const name = normalizePyName(p.name);
     const direct = directDeps.has(name) || directDev.has(name);

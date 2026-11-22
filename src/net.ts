@@ -1,9 +1,9 @@
 /**
- * Rede: novas tentativas para falhas passageiras e mensagens de erro legíveis.
+ * Network: retries for transient failures and readable error messages.
  *
- * "fetch failed" (TypeError do undici) esconde o motivo real em `err.cause`
- * (ENOTFOUND, ECONNRESET, ETIMEDOUT...). Falhas assim são comuns logo ao abrir o VS Code,
- * quando a rede/DNS ainda não está pronta (especialmente no WSL).
+ * "fetch failed" (undici TypeError) hides the real reason in `err.cause`
+ * (ENOTFOUND, ECONNRESET, ETIMEDOUT...). Such failures are common right after VS Code opens,
+ * when the network/DNS is not ready yet (especially on WSL).
  */
 
 const TRANSIENT_CODES = new Set([
@@ -24,7 +24,7 @@ const TRANSIENT_CODES = new Set([
   'UND_ERR_CLOSED',
 ]);
 
-/** Erro HTTP com status, para decidir se vale tentar de novo. */
+/** HTTP error carrying the status, to decide whether a retry is worthwhile. */
 export class HttpError extends Error {
   constructor(readonly status: number, message: string) {
     super(message);
@@ -36,7 +36,7 @@ function causeCode(err: any): string | undefined {
   return err?.cause?.code ?? err?.cause?.cause?.code ?? err?.code;
 }
 
-/** true quando o usuário cancelou (não é falha de rede e não deve ser repetido). */
+/** true when the user cancelled (not a network failure; must not be retried). */
 export function isUserAbort(err: any, signal?: AbortSignal): boolean {
   return !!signal?.aborted && err?.name !== 'TimeoutError';
 }
@@ -52,7 +52,7 @@ export function isTransient(err: any): boolean {
   if (code && TRANSIENT_CODES.has(code)) {
     return true;
   }
-  // "fetch failed" sem código conhecido: na prática quase sempre é rede
+  // "fetch failed" without a known code: in practice it is almost always the network
   return err instanceof TypeError && /fetch failed/i.test(err.message);
 }
 
@@ -63,7 +63,7 @@ export interface RetryOptions {
   onRetry?: (attempt: number, delayMs: number, err: unknown) => void;
 }
 
-/** Executa `fn` com novas tentativas e espera exponencial (1x, 2x, 4x... com variação aleatória). */
+/** Runs `fn` with retries and exponential backoff (1x, 2x, 4x... with random jitter). */
 export async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= opts.attempts; attempt++) {
@@ -100,44 +100,44 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-/** Mensagem curta e acionável, com o motivo real da falha. */
+/** Short, actionable message with the real reason for the failure. */
 export function describeError(err: any, host = 'api.osv.dev'): string {
   if (err instanceof HttpError) {
     if (err.status === 429) {
-      return `${host} limitou as requisições (HTTP 429); tente de novo em instantes`;
+      return `${host} rate-limited the requests (HTTP 429); try again in a moment`;
     }
     return err.message;
   }
   if (err?.name === 'TimeoutError') {
-    return `tempo esgotado ao falar com ${host}`;
+    return `timed out talking to ${host}`;
   }
   const code = causeCode(err);
   switch (code) {
     case 'ENOTFOUND':
     case 'EAI_AGAIN':
-      return `não foi possível resolver ${host} (DNS). Sem internet ou a rede ainda está iniciando?`;
+      return `could not resolve ${host} (DNS). No internet, or is the network still starting up?`;
     case 'ECONNREFUSED':
-      return `conexão recusada por ${host} (firewall ou proxy?)`;
+      return `connection refused by ${host} (firewall or proxy?)`;
     case 'ECONNRESET':
     case 'EPIPE':
     case 'UND_ERR_SOCKET':
     case 'UND_ERR_CLOSED':
-      return `a conexão com ${host} foi interrompida`;
+      return `the connection to ${host} was interrupted`;
     case 'ETIMEDOUT':
     case 'UND_ERR_CONNECT_TIMEOUT':
     case 'UND_ERR_HEADERS_TIMEOUT':
     case 'UND_ERR_BODY_TIMEOUT':
-      return `tempo esgotado ao conectar a ${host}`;
+      return `timed out connecting to ${host}`;
     case 'ENETUNREACH':
     case 'ENETDOWN':
     case 'EHOSTUNREACH':
-      return `rede indisponível para alcançar ${host}`;
+      return `network unavailable to reach ${host}`;
     case 'SELF_SIGNED_CERT_IN_CHAIN':
     case 'DEPTH_ZERO_SELF_SIGNED_CERT':
     case 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY':
     case 'UNABLE_TO_VERIFY_LEAF_SIGNATURE':
     case 'CERT_HAS_EXPIRED':
-      return `certificado TLS inválido para ${host} (${code}); um proxy corporativo pode estar interceptando o HTTPS`;
+      return `invalid TLS certificate for ${host} (${code}); a corporate proxy may be intercepting HTTPS`;
   }
   const base = err?.message ?? String(err);
   const detail = err?.cause?.message;

@@ -1,6 +1,6 @@
 export type Ecosystem = 'npm' | 'PyPI';
 
-/** Ferramenta que gerencia a dependência (define como corrigir). */
+/** Tool that manages the dependency (defines how to fix it). */
 export type Manager = 'npm' | 'pnpm' | 'yarn' | 'pip' | 'uv';
 
 export type Severity = 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW' | 'UNKNOWN';
@@ -13,7 +13,7 @@ export const SEVERITY_ORDER: Record<Severity, number> = {
   UNKNOWN: 0,
 };
 
-/** Posição (0-based) de um trecho dentro de um arquivo. */
+/** Position (0-based) of a span inside a file. */
 export interface Location {
   file: string;
   line: number;
@@ -26,17 +26,17 @@ export interface Dependency {
   version: string;
   ecosystem: Ecosystem;
   manager: Manager;
-  /** Pasta do projeto (onde rodar comandos como "uv lock"). */
+  /** Project folder (where to run commands such as "uv lock"). */
   projectDir?: string;
-  /** Onde a dependência aparece (package.json, package-lock.json ou requirements.txt). */
+  /** Where the dependency appears (package.json, package-lock.json, requirements.txt...). */
   location: Location;
-  /** Trecho exato da versão no arquivo, quando editável (usado pelo Quick Fix). */
+  /** Exact span of the version in the file, when editable (used by the Quick Fix). */
   versionLocation?: Location;
-  /** Especificação original, ex.: "^4.17.0" ou "==2.19.0". */
+  /** Original specifier, e.g. "^4.17.0" or "==2.19.0". */
   spec: string;
   direct: boolean;
   dev: boolean;
-  /** true quando a versão foi deduzida de uma faixa (sem lockfile). */
+  /** true when the version was inferred from a range (no lockfile). */
   approximate: boolean;
 }
 
@@ -55,9 +55,9 @@ export interface Finding {
   vulnerabilities: Vulnerability[];
 }
 
-/** Resultado de um parser de projeto com lockfile. */
+/** Result of a lockfile project parser. */
 export interface ParseResult {
   dependencies: Dependency[];
-  /** Pastas de membros de workspace já cobertas por este lockfile. */
+  /** Workspace member folders already covered by this lockfile. */
   members: string[];
 }

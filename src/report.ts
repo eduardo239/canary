@@ -5,15 +5,15 @@ export type ReportFormat = 'markdown' | 'csv' | 'json';
 
 export interface ReportMeta {
   generatedAt: Date;
-  /** nome do workspace (só aparece no relatório local, nunca é enviado para fora) */
+  /** workspace name (only appears in the local report, never sent anywhere) */
   workspace: string;
   dependenciesScanned: number;
   ignored: number;
-  /** converte caminho absoluto em caminho relativo ao workspace */
+  /** converts an absolute path to a workspace-relative path */
   relativePath: (file: string) => string;
 }
 
-/** Uma linha do relatório: uma vulnerabilidade de um pacote em um local. */
+/** One report row: one vulnerability of a package at one location. */
 export interface ReportRow {
   package: string;
   ecosystem: string;
@@ -21,22 +21,22 @@ export interface ReportRow {
   currentVersion: string;
   declaredAs: string;
   versionEstimated: boolean;
-  dependencyType: 'direta' | 'transitiva' | 'dev';
+  dependencyType: 'direct' | 'transitive' | 'dev';
   file: string;
   line: number;
   vulnerabilityId: string;
   aliases: string[];
   severity: Severity;
   summary: string;
-  /** menor versão que corrige esta vulnerabilidade */
+  /** lowest version that fixes this vulnerability */
   fixedVersion: string | null;
-  /** menor versão que corrige todas as vulnerabilidades conhecidas do pacote */
+  /** lowest version that fixes all known vulnerabilities of the package */
   recommendedVersion: string | null;
   published: string | null;
   url: string;
 }
 
-/** Menor versão que corrige todas as vulnerabilidades com correção conhecida (a maior entre as correções). */
+/** Lowest version that fixes every vulnerability with a known fix (the highest of the fixes). */
 export function recommendedVersion(finding: Finding): string | undefined {
   const fixes = finding.vulnerabilities.map((v) => v.fixedVersion).filter((v): v is string => !!v);
   return fixes.length ? [...fixes].sort(compareVersions)[fixes.length - 1] : undefined;
@@ -55,7 +55,7 @@ export function buildRows(findings: Finding[], meta: ReportMeta): ReportRow[] {
         currentVersion: d.version,
         declaredAs: d.spec,
         versionEstimated: d.approximate,
-        dependencyType: d.direct ? (d.dev ? 'dev' : 'direta') : 'transitiva',
+        dependencyType: d.direct ? (d.dev ? 'dev' : 'direct') : 'transitive',
         file: meta.relativePath(d.location.file),
         line: d.location.line + 1,
         vulnerabilityId: v.id,
@@ -96,7 +96,7 @@ export function renderReport(format: ReportFormat, findings: Finding[], meta: Re
   }
 }
 
-/** Rótulos do relatório em Markdown (em inglês). */
+/** Markdown report labels. */
 const SEVERITY_LABEL: Record<Severity, string> = {
   CRITICAL: 'Critical',
   HIGH: 'High',
@@ -110,7 +110,7 @@ const TYPE_LABEL = (d: { direct: boolean; dev: boolean }) => (d.direct ? (d.dev 
 const CVE = (aliases: string[]) => aliases.filter((a) => a.startsWith('CVE-'));
 
 // ---------------------------------------------------------------------------
-// Markdown (em inglês, para compartilhar em PRs e issues)
+// Markdown (for sharing in PRs and issues)
 // ---------------------------------------------------------------------------
 
 function toMarkdown(rows: ReportRow[], findings: Finding[], meta: ReportMeta): string {
@@ -131,7 +131,7 @@ function toMarkdown(rows: ReportRow[], findings: Finding[], meta: ReportMeta): s
   (Object.keys(counts) as Severity[]).filter((s) => counts[s]).forEach((s) => out.push(`| ${SEVERITY_LABEL[s]} | ${counts[s]} |`));
   out.push('');
 
-  // um pacote por linha: o que fazer
+  // one package per row: what to do
   out.push('## Packages and recommended upgrades', '');
   out.push('| Package | Current version | Upgrade to | Highest severity | Vulnerabilities | Type | Location |');
   out.push('|---|---|---|---|---:|---|---|');
@@ -152,7 +152,7 @@ function toMarkdown(rows: ReportRow[], findings: Finding[], meta: ReportMeta): s
   }
   out.push('');
 
-  // uma vulnerabilidade por linha: detalhes
+  // one vulnerability per row: details
   out.push('## Vulnerabilities', '');
   out.push('| Severity | ID | CVE | Package | Current version | Fixed in | Summary |');
   out.push('|---|---|---|---|---|---|---|');
@@ -178,23 +178,23 @@ function toMarkdown(rows: ReportRow[], findings: Finding[], meta: ReportMeta): s
 // ---------------------------------------------------------------------------
 
 const CSV_COLUMNS: [keyof ReportRow | 'cve', string][] = [
-  ['severity', 'severidade'],
-  ['package', 'pacote'],
-  ['ecosystem', 'ecossistema'],
-  ['manager', 'gerenciador'],
-  ['currentVersion', 'versao_atual'],
-  ['fixedVersion', 'versao_corrigida'],
-  ['recommendedVersion', 'versao_recomendada'],
-  ['declaredAs', 'declarado_como'],
-  ['versionEstimated', 'versao_estimada'],
-  ['dependencyType', 'tipo'],
+  ['severity', 'severity'],
+  ['package', 'package'],
+  ['ecosystem', 'ecosystem'],
+  ['manager', 'manager'],
+  ['currentVersion', 'current_version'],
+  ['fixedVersion', 'fixed_version'],
+  ['recommendedVersion', 'recommended_version'],
+  ['declaredAs', 'declared_as'],
+  ['versionEstimated', 'version_estimated'],
+  ['dependencyType', 'type'],
   ['vulnerabilityId', 'id'],
   ['cve', 'cve'],
   ['aliases', 'aliases'],
-  ['summary', 'resumo'],
-  ['published', 'publicado_em'],
-  ['file', 'arquivo'],
-  ['line', 'linha'],
+  ['summary', 'summary'],
+  ['published', 'published_at'],
+  ['file', 'file'],
+  ['line', 'line'],
   ['url', 'url'],
 ];
 
@@ -209,14 +209,14 @@ function toCsv(rows: ReportRow[]): string {
       }).join(','),
     );
   }
-  // BOM para o Excel reconhecer UTF-8 (acentos)
+  // BOM so Excel recognizes UTF-8 (accented characters)
   return '\uFEFF' + lines.join('\r\n') + '\r\n';
 }
 
 /**
- * Escapa um campo CSV. Textos vindos de fora (resumos da OSV, nomes de pacotes) que começam com
- * "=", "+", "-", "@" ou tab/CR seriam interpretados como fórmula por planilhas (CSV injection):
- * nesses casos o valor recebe um apóstrofo na frente.
+ * Escapes a CSV field. Externally sourced text (OSV summaries, package names) starting with
+ * "=", "+", "-", "@" or tab/CR would be interpreted as a formula by spreadsheets (CSV injection):
+ * in those cases the value is prefixed with an apostrophe.
  */
 function csvField(value: string): string {
   let v = value;

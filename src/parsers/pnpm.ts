@@ -19,16 +19,16 @@ interface ImporterDep {
 
 interface PkgId {
   name: string;
-  /** versão limpa, sem sufixo de peers */
+  /** clean version, without the peers suffix */
   version: string;
-  /** identificador com peers, como aparece no grafo */
+  /** identifier with peers, as it appears in the graph */
   id: string;
 }
 
 /**
- * Projeto pnpm: pnpm-lock.yaml (lockfileVersion 5.x, 6.x e 9.x) + package.json dos importers.
- * O lockfile é YAML gerado pela ferramenta, com indentação fixa; o leitor é linha a linha
- * para guardar a posição de cada pacote.
+ * pnpm project: pnpm-lock.yaml (lockfileVersion 5.x, 6.x and 9.x) + the importers' package.json.
+ * The lockfile is tool-generated YAML with fixed indentation; the reader works line by line
+ * to keep the position of each package.
  */
 export async function parsePnpmProject(dir: string, opts: PnpmOptions): Promise<ParseResult> {
   const lockPath = path.join(dir, 'pnpm-lock.yaml');
@@ -40,7 +40,7 @@ export async function parsePnpmProject(dir: string, opts: PnpmOptions): Promise<
   const lines = text.split(/\r?\n/);
 
   const parseId = (raw: string) => parsePkgId(raw, lock.major);
-  /** Referência de um importer/snapshot ("1.2.3(peer@1)", "link:..", "alias@1.2.3") -> id do grafo. */
+  /** Reference from an importer/snapshot ("1.2.3(peer@1)", "link:..", "alias@1.2.3") -> graph id. */
   const resolveRef = (name: string, ref: string): PkgId | undefined => {
     if (/^(link|file|workspace):/.test(ref)) {
       return undefined;
@@ -48,10 +48,10 @@ export async function parsePnpmProject(dir: string, opts: PnpmOptions): Promise<
     if (/^\d/.test(ref)) {
       return parseId(lock.major < 6 ? `/${name}/${ref}` : `${name}@${ref}`);
     }
-    return parseId(ref); // alias ("string-width@4.2.3") ou id completo ("/name@1.0.0")
+    return parseId(ref); // alias ("string-width@4.2.3") or full id ("/name@1.0.0")
   };
 
-  // ---- o que é alcançável a partir das dependências de produção (para marcar dev) ----
+  // ---- what is reachable from production dependencies (to flag dev) ----
   const prodRoots: string[] = [];
   for (const deps of lock.importers.values()) {
     for (const d of deps) {
@@ -77,7 +77,7 @@ export async function parsePnpmProject(dir: string, opts: PnpmOptions): Promise<
     }
   }
 
-  // ---- dependências diretas: apontam para o package.json de cada importer ----
+  // ---- direct dependencies: point to each importer's package.json ----
   const out: Dependency[] = [];
   const directKeys = new Set<string>();
   const members: string[] = [];
@@ -121,7 +121,7 @@ export async function parsePnpmProject(dir: string, opts: PnpmOptions): Promise<
     }
   }
 
-  // ---- transitivas: apontam para a entrada em "packages:" do lockfile ----
+  // ---- transitive: point to the entry under "packages:" in the lockfile ----
   const transitive = new Map<string, { pkg: PkgId; line: number; col: number; prod: boolean }>();
   const nodes = lock.graph.size ? [...lock.graph.keys()] : [...lock.packages.keys()];
   for (const id of new Set([...nodes, ...lock.packages.keys()])) {
@@ -163,13 +163,13 @@ export async function parsePnpmProject(dir: string, opts: PnpmOptions): Promise<
 interface LockData {
   major: number;
   importers: Map<string, ImporterDep[]>;
-  /** id -> posição da chave em "packages:" */
+  /** id -> position of the key under "packages:" */
   packages: Map<string, { line: number; col: number }>;
-  /** "nome@versão" -> posição (para ids com peers que só existem em "snapshots:") */
+  /** "name@version" -> position (for ids with peers that only exist under "snapshots:") */
   packagesByKey: Map<string, { line: number; col: number }>;
-  /** id -> [nome, ref] das dependências (snapshots no v9, packages no v5/v6) */
+  /** id -> [name, ref] of its dependencies (snapshots in v9, packages in v5/v6) */
   graph: Map<string, [string, string][]>;
-  /** id -> valor de "dev:" (v5/v6) */
+  /** id -> value of "dev:" (v5/v6) */
   devFlags: Map<string, boolean>;
 }
 
@@ -187,10 +187,10 @@ function readLock(text: string): LockData {
   let importer: ImporterDep[] | undefined;
   let section: Section | undefined;
   let dep: ImporterDep | undefined;
-  let node: string | undefined; // pacote atual em packages/snapshots
+  let node: string | undefined; // current package under packages/snapshots
   let nodeDeps = false;
 
-  // em lockfiles v5/v6 sem workspace, as seções ficam no topo (importer ".")
+  // in v5/v6 lockfiles without a workspace, the sections sit at the top level (importer ".")
   const rootImporter = () => {
     if (!data.importers.has('.')) {
       data.importers.set('.', []);
@@ -243,7 +243,7 @@ function readLock(text: string): LockData {
     }
 
     if ((SECTIONS as readonly string[]).includes(top)) {
-      // v5/v6 sem workspace
+      // v5/v6 without a workspace
       if (indent === 2 && importer && section) {
         dep = { name: key, section, line: lineNo, col: indent, ref: value ? unquote(value) : undefined };
         importer.push(dep);
@@ -285,13 +285,13 @@ function readLock(text: string): LockData {
   return data;
 }
 
-/** Remove a "/" inicial dos ids do v5/v6, mantendo o formato "nome@versão(peers)". */
+/** Strips the leading "/" from v5/v6 ids, keeping the "name@version(peers)" format. */
 function normalizeId(raw: string): string {
   return raw.replace(/^\//, '');
 }
 
 /**
- * Interpreta um id de pacote:
+ * Parses a package id:
  *   v9/v6: "@babel/core@7.0.0(peer@1)"   v5: "/@babel/core/7.0.0_peer@1"
  */
 function parsePkgId(raw: string, major: number): PkgId | undefined {

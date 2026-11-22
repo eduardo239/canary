@@ -1,4 +1,4 @@
-// Teste rápido fora do VS Code: parsers + consulta real à OSV.dev.
+// Quick test outside VS Code: parsers + a real OSV.dev query.
 const path = require('path');
 const { parseNpmProject } = require('../out/parsers/npm');
 const { parsePnpmProject } = require('../out/parsers/pnpm');
@@ -16,16 +16,16 @@ const { OsvClient } = require('../out/osv');
     ...(await parseRequirements(path.join(root, 'py-app', 'requirements.txt'))),
     ...(await parseUvProject(path.join(root, 'uv-app'), { includeDev: true })),
   ];
-  console.log('Dependências:');
+  console.log('Dependencies:');
   for (const d of deps) {
     const rel = path.relative(root, d.location.file);
-    const fix = d.versionLocation ? ` [versão editável: col ${d.versionLocation.startCol}-${d.versionLocation.endCol}]` : '';
-    console.log(`  ${d.manager.padEnd(3)} ${`${d.name}@${d.version}`.padEnd(30)} ${d.direct ? (d.dev ? 'dev       ' : 'direta    ') : 'transitiva'} ${rel}:${d.location.line + 1}${d.approximate ? ' (aprox.)' : ''}${fix}`);
+    const fix = d.versionLocation ? ` [editable version: col ${d.versionLocation.startCol}-${d.versionLocation.endCol}]` : '';
+    console.log(`  ${d.manager.padEnd(3)} ${`${d.name}@${d.version}`.padEnd(30)} ${d.direct ? (d.dev ? 'dev       ' : 'direct    ') : 'transitive'} ${rel}:${d.location.line + 1}${d.approximate ? ' (aprox.)' : ''}${fix}`);
   }
   const findings = await new OsvClient().scan(deps);
-  console.log('\nAchados:');
+  console.log('\nFindings:');
   for (const f of findings) {
-    console.log(`  [${f.dependency.manager}] ${f.dependency.name}@${f.dependency.version}: ${f.vulnerabilities.length} vulnerabilidade(s)`);
+    console.log(`  [${f.dependency.manager}] ${f.dependency.name}@${f.dependency.version}: ${f.vulnerabilities.length} vulnerabilit${f.vulnerabilities.length === 1 ? 'y' : 'ies'}`);
     for (const v of f.vulnerabilities.slice(0, 2)) {
       console.log(`     - ${v.id} [${v.severity}] fix=${v.fixedVersion ?? '-'} ${v.summary.slice(0, 64)}`);
     }

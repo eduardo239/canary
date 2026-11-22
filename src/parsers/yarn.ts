@@ -10,24 +10,24 @@ export interface YarnOptions {
 interface Node {
   name: string;
   version: string;
-  /** [nome, faixa] das dependências e optionalDependencies */
+  /** [name, range] of dependencies and optionalDependencies */
   deps: [string, string][];
   line: number;
   endCol: number;
 }
 
 interface LockData {
-  /** "nome@faixa" (como aparece na chave do lockfile) -> id "nome@versão" */
+  /** "name@range" (as it appears in the lockfile key) -> id "name@version" */
   descriptors: Map<string, string>;
   nodes: Map<string, Node>;
-  /** pastas relativas de workspaces listadas no lockfile (Yarn 2+) */
+  /** relative workspace folders listed in the lockfile (Yarn 2+) */
   workspaces: string[];
 }
 
 /**
- * Projeto Yarn: yarn.lock (Classic 1.x e Berry 2+) + package.json da raiz e dos workspaces.
- * O yarn.lock não diferencia produção de desenvolvimento; isso vem dos package.json:
- * o que não é alcançável a partir das dependências de produção é marcado como dev.
+ * Yarn project: yarn.lock (Classic 1.x and Berry 2+) + the root and workspace package.json files.
+ * yarn.lock does not distinguish production from development; that comes from the package.json files:
+ * anything not reachable from production dependencies is flagged as dev.
  */
 export async function parseYarnProject(dir: string, opts: YarnOptions): Promise<ParseResult> {
   const lockPath = path.join(dir, 'yarn.lock');
@@ -37,7 +37,7 @@ export async function parseYarnProject(dir: string, opts: YarnOptions): Promise<
   }
   const lock = readLock(text);
 
-  // ---- projetos: a raiz e cada workspace ----
+  // ---- projects: the root and each workspace ----
   const rootManifest = await loadManifest(path.join(dir, 'package.json'));
   const memberDirs = new Set<string>();
   for (const rel of lock.workspaces) {
@@ -60,12 +60,12 @@ export async function parseYarnProject(dir: string, opts: YarnOptions): Promise<
         return id;
       }
     }
-    // Yarn 2+: "patch:resolve@npm%3A^1.1.7#..." aponta para o descritor original
+    // Yarn 2+: "patch:resolve@npm%3A^1.1.7#..." points to the original descriptor
     const patch = /^patch:(.+?)(?:#|$)/.exec(range);
     return patch ? lock.descriptors.get(safeDecode(patch[1])) : undefined;
   };
 
-  // ---- o que é alcançável a partir das dependências de produção (para marcar dev) ----
+  // ---- what is reachable from production dependencies (to flag dev) ----
   const roots: string[] = [];
   for (const p of projects) {
     for (const [name, d] of p.manifest?.declared ?? []) {
@@ -91,7 +91,7 @@ export async function parseYarnProject(dir: string, opts: YarnOptions): Promise<
     }
   }
 
-  // ---- dependências diretas: apontam para o package.json de cada projeto ----
+  // ---- direct dependencies: point to each project's package.json ----
   const out: Dependency[] = [];
   const directKeys = new Set<string>();
   for (const p of projects) {
@@ -116,7 +116,7 @@ export async function parseYarnProject(dir: string, opts: YarnOptions): Promise<
         manager: 'yarn',
         projectDir: p.dir,
         location: d.location,
-        // faixas com protocolo (npm:alias@^1, patch:...) não são editadas pelo Quick Fix
+        // ranges with a protocol (npm:alias@^1, patch:...) are not edited by the Quick Fix
         versionLocation: /^[a-z]+:/i.test(d.spec) ? undefined : d.versionLocation,
         spec: d.spec,
         direct: true,
@@ -126,7 +126,7 @@ export async function parseYarnProject(dir: string, opts: YarnOptions): Promise<
     }
   }
 
-  // ---- transitivas: apontam para a entrada no yarn.lock ----
+  // ---- transitive: point to the entry in yarn.lock ----
   const hasRoots = roots.length > 0;
   for (const [id, node] of lock.nodes) {
     if (!/^\d/.test(node.version) || directKeys.has(id)) {
@@ -244,7 +244,7 @@ function readLock(text: string): LockData {
         continue;
       }
       if (range.startsWith('npm:')) {
-        // alias: "apelido@npm:pacote-real@^1"
+        // alias: "nickname@npm:real-package@^1"
         const inner = range.slice(4);
         const innerAt = inner.indexOf('@', 1);
         if (innerAt > 0) {
@@ -286,7 +286,7 @@ async function loadManifest(file: string): Promise<{ index: ManifestIndex; works
   }
 }
 
-/** Expande os padrões de "workspaces" (suporta "*" e "**") para pastas que têm package.json. */
+/** Expands the "workspaces" patterns (supports "*" and "**") into folders that have a package.json. */
 async function expandWorkspaces(root: string, patterns: string[]): Promise<string[]> {
   const found = new Set<string>();
   for (const pattern of patterns) {
