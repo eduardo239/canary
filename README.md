@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="media/canary-logo.jpg" alt="Logo do Canary: um canário em traços neon dentro de um escudo, com o símbolo &lt;/&gt; no topo" width="280">
+  <img src="media/canary-icon2.jpg_7b2da392.jpg" alt="Logo do Canary: um canário em traços neon dentro de um escudo, com o símbolo &lt;/&gt; no topo" width="280">
 </p>
 
 <h1 align="center">Canary</h1>
@@ -14,12 +14,13 @@ exige login nem chave de API.
 
 ## Gerenciadores suportados
 
-| Gerenciador | Arquivos lidos | Transitivas | Workspaces |
-|---|---|---|---|
-| **npm** | `package.json`, `package-lock.json` (v1, v2, v3) | ✅ | ✅ |
-| **pnpm** | `package.json`, `pnpm-lock.yaml` (5.x, 6.x, 9.x) | ✅ | ✅ |
-| **uv** | `pyproject.toml`, `uv.lock` | ✅ | ✅ |
-| **pip** | `requirements*.txt` | — | — |
+| Gerenciador | Arquivos lidos                                       | Transitivas | Workspaces |
+| ----------- | ---------------------------------------------------- | ----------- | ---------- |
+| **npm**     | `package.json`, `package-lock.json` (v1, v2, v3)     | ✅          | ✅         |
+| **pnpm**    | `package.json`, `pnpm-lock.yaml` (5.x, 6.x, 9.x)     | ✅          | ✅         |
+| **yarn**    | `package.json`, `yarn.lock` (Classic 1.x e Berry 2+) | ✅          | ✅         |
+| **uv**      | `pyproject.toml`, `uv.lock`                          | ✅          | ✅         |
+| **pip**     | `requirements*.txt`                                  | —           | —          |
 
 Projetos Python que seguem o PEP 621 sem `uv.lock` (hatch, pdm, setuptools) também são analisados
 pelo `pyproject.toml`, com versões aproximadas.
@@ -41,8 +42,8 @@ pelo `pyproject.toml`, com versões aproximadas.
   o tooltip traz também o total de vulnerabilidades. Sem achados, o contador some.
 - **Barra de status:** total de vulnerabilidades, com cor de alerta conforme a pior severidade.
 - **Verificação automática** ao abrir o workspace e sempre que um manifesto ou lockfile muda, inclusive
-  depois de `npm install`, `pnpm install` ou `uv lock`.
-- **Monorepos:** em workspaces npm, pnpm ou uv, as dependências diretas de cada projeto apontam para o
+  depois de `npm install`, `pnpm install`, `yarn install` ou `uv lock`.
+- **Monorepos:** em workspaces npm, pnpm, yarn ou uv, as dependências diretas de cada projeto apontam para o
   próprio `package.json` ou `pyproject.toml`, e nenhum pacote é contado duas vezes.
 - **Notificação com ações:** ao encontrar vulnerabilidades, uma notificação resume os achados por
   severidade e oferece os botões **Exportar relatório**, **Escanear novamente** e **Ver detalhes**. Nas
@@ -55,51 +56,51 @@ Para exportar, use o botão **Exportar relatório** da notificação, o ícone d
 Canary ou o comando `Canary: Exportar relatório de vulnerabilidades`. Escolha o formato e onde salvar; o nome
 sugerido é `canary-report-AAAA-MM-DD.<extensão>`, na raiz do workspace.
 
-| Formato | Indicado para | Conteúdo |
-|---|---|---|
-| **Markdown** (em inglês) | PRs, issues, documentação | Resumo por severidade, tabela de pacotes com a versão recomendada e tabela detalhada das vulnerabilidades |
-| **CSV** | Excel, Google Sheets, LibreOffice | Uma linha por vulnerabilidade, em UTF-8 com BOM (acentos corretos no Excel) |
-| **JSON** | CI e outras ferramentas | Resumo (totais e contagem por severidade) e a lista completa de vulnerabilidades |
+| Formato                  | Indicado para                     | Conteúdo                                                                                                  |
+| ------------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Markdown** (em inglês) | PRs, issues, documentação         | Resumo por severidade, tabela de pacotes com a versão recomendada e tabela detalhada das vulnerabilidades |
+| **CSV**                  | Excel, Google Sheets, LibreOffice | Uma linha por vulnerabilidade, em UTF-8 com BOM (acentos corretos no Excel)                               |
+| **JSON**                 | CI e outras ferramentas           | Resumo (totais e contagem por severidade) e a lista completa de vulnerabilidades                          |
 
 Campos de cada vulnerabilidade:
 
-| Campo | Descrição |
-|---|---|
-| Pacote, ecossistema, gerenciador | Ex.: `lodash`, `npm`, `pnpm` |
-| Versão atual | Versão instalada (ou estimada, quando não há lockfile, indicado em "versão estimada") |
-| Versão corrigida | Menor versão que corrige **esta** vulnerabilidade |
-| Versão recomendada | Menor versão que corrige **todas** as vulnerabilidades conhecidas do pacote (a mesma usada pelo Quick Fix) |
-| Declarado como | Especificação no manifesto, ex.: `^4.17.0`, `>=2.25,<3` |
-| Tipo | `direta`, `dev` ou `transitiva` |
-| Severidade | Crítica, alta, média, baixa ou desconhecida |
-| ID, CVE, aliases | Ex.: `GHSA-35jh-r3h4-6jhm`, `CVE-2021-23337` |
-| Resumo e data de publicação | Texto do advisory na OSV.dev |
-| Arquivo e linha | Onde a dependência aparece no workspace |
-| URL | Link para o advisory em `osv.dev` |
+| Campo                            | Descrição                                                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Pacote, ecossistema, gerenciador | Ex.: `lodash`, `npm`, `pnpm`                                                                               |
+| Versão atual                     | Versão instalada (ou estimada, quando não há lockfile, indicado em "versão estimada")                      |
+| Versão corrigida                 | Menor versão que corrige **esta** vulnerabilidade                                                          |
+| Versão recomendada               | Menor versão que corrige **todas** as vulnerabilidades conhecidas do pacote (a mesma usada pelo Quick Fix) |
+| Declarado como                   | Especificação no manifesto, ex.: `^4.17.0`, `>=2.25,<3`                                                    |
+| Tipo                             | `direta`, `dev` ou `transitiva`                                                                            |
+| Severidade                       | Crítica, alta, média, baixa ou desconhecida                                                                |
+| ID, CVE, aliases                 | Ex.: `GHSA-35jh-r3h4-6jhm`, `CVE-2021-23337`                                                               |
+| Resumo e data de publicação      | Texto do advisory na OSV.dev                                                                               |
+| Arquivo e linha                  | Onde a dependência aparece no workspace                                                                    |
+| URL                              | Link para o advisory em `osv.dev`                                                                          |
 
 O relatório é gerado a partir da última verificação e salvo só no seu disco; nada é enviado para fora.
 
 No CSV, valores que começam com `=`, `+`, `-` ou `@` recebem um apóstrofo na frente (ex.: `'@babel/traverse`).
-Isso impede que planilhas interpretem textos vindos de fora como fórmulas (*CSV injection*) e evita o erro
+Isso impede que planilhas interpretem textos vindos de fora como fórmulas (_CSV injection_) e evita o erro
 `#NAME?` no Excel com pacotes com escopo. No Markdown e no JSON os valores ficam intactos.
 
 ## Comandos
 
-| Comando | Descrição |
-|---|---|
-| `Canary: Verificar vulnerabilidades` | Analisa o workspace agora |
+| Comando                                          | Descrição                                                        |
+| ------------------------------------------------ | ---------------------------------------------------------------- |
+| `Canary: Verificar vulnerabilidades`             | Analisa o workspace agora                                        |
 | `Canary: Exportar relatório de vulnerabilidades` | Salva o resultado da última verificação em Markdown, CSV ou JSON |
-| `Canary: Limpar resultados` | Remove os alertas e esvazia o painel |
+| `Canary: Limpar resultados`                      | Remove os alertas e esvazia o painel                             |
 
 ## Configurações
 
-| Chave | Padrão | Descrição |
-|---|---|---|
-| `canary.scanOnStartup` | `true` | Verifica ao abrir o workspace |
-| `canary.scanOnChange` | `true` | Verifica de novo quando manifestos ou lockfiles mudam |
-| `canary.includeDevDependencies` | `true` | Inclui dependências de desenvolvimento (`devDependencies`, `[dependency-groups]`, `tool.uv.dev-dependencies`) |
-| `canary.exclude` | `**/{node_modules,.venv,venv,.git,dist,out,build}/**` | Pastas ignoradas na busca por manifestos |
-| `canary.ignorePackages` | `[]` | Pacotes que não são analisados nem enviados à OSV.dev (veja abaixo) |
+| Chave                           | Padrão                                                | Descrição                                                                                                     |
+| ------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `canary.scanOnStartup`          | `true`                                                | Verifica ao abrir o workspace                                                                                 |
+| `canary.scanOnChange`           | `true`                                                | Verifica de novo quando manifestos ou lockfiles mudam                                                         |
+| `canary.includeDevDependencies` | `true`                                                | Inclui dependências de desenvolvimento (`devDependencies`, `[dependency-groups]`, `tool.uv.dev-dependencies`) |
+| `canary.exclude`                | `**/{node_modules,.venv,venv,.git,dist,out,build}/**` | Pastas ignoradas na busca por manifestos                                                                      |
+| `canary.ignorePackages`         | `[]`                                                  | Pacotes que não são analisados nem enviados à OSV.dev (veja abaixo)                                           |
 
 ### Ignorando pacotes internos
 
@@ -110,15 +111,15 @@ e um prefixo opcional de ecossistema (`npm:` ou `pypi:`):
 // .vscode/settings.json
 {
   "canary.ignorePackages": [
-    "@minhaempresa/*",      // qualquer ecossistema
-    "npm:internal-*",       // só npm
-    "pypi:minhaempresa-*"   // só PyPI
-  ]
+    "@minhaempresa/*", // qualquer ecossistema
+    "npm:internal-*", // só npm
+    "pypi:minhaempresa-*", // só PyPI
+  ],
 }
 ```
 
 Em pacotes Python, os nomes são comparados já normalizados (PEP 503): `pypi:Minha_Empresa-*` também casa com
-`minha-empresa-core`. A comparação ignora maiúsculas. O canal **Canary** do painel *Output* mostra quantos
+`minha-empresa-core`. A comparação ignora maiúsculas. O canal **Canary** do painel _Output_ mostra quantos
 pacotes foram ignorados em cada verificação.
 
 ## Segurança e privacidade
@@ -158,10 +159,10 @@ npm run compile      # ou: npm run watch
 Para rodar a extensão:
 
 1. Abra esta pasta no VS Code e pressione **F5**.
-2. Na janela *Extension Development Host*, abra a pasta `sample-workspace/`.
-3. Veja os alertas no painel *Problems*, no ícone do canário e na barra de status.
+2. Na janela _Extension Development Host_, abra a pasta `sample-workspace/`.
+3. Veja os alertas no painel _Problems_, no ícone do canário e na barra de status.
 
-Os logs ficam no canal **Canary** do painel *Output*.
+Os logs ficam no canal **Canary** do painel _Output_.
 
 Teste rápido sem abrir o VS Code (lê os projetos de exemplo e consulta a OSV.dev de verdade):
 
@@ -173,12 +174,13 @@ npm run smoke
 
 A pasta `sample-workspace/` tem um projeto por gerenciador, todos com pacotes vulneráveis de propósito:
 
-| Pasta | Gerenciador | Destaques |
-|---|---|---|
-| `node-app/` | npm | `lodash`, `express`; transitivas `qs` e `path-to-regexp` |
+| Pasta       | Gerenciador      | Destaques                                                                             |
+| ----------- | ---------------- | ------------------------------------------------------------------------------------- |
+| `node-app/` | npm              | `lodash`, `express`; transitivas `qs` e `path-to-regexp`                              |
 | `pnpm-app/` | pnpm (workspace) | `axios`, `@babel/traverse` em `packages/web`; transitiva `qs` forçada com `overrides` |
-| `uv-app/` | uv | `jinja2`, `flask`; transitiva `urllib3` forçada com `constraint-dependencies` |
-| `py-app/` | pip | `requests`, `django`, `urllib3` |
+| `yarn-app/` | yarn (Classic)   | `lodash`, `express`; transitivas `qs` e `path-to-regexp`                              |
+| `uv-app/`   | uv               | `jinja2`, `flask`; transitiva `urllib3` forçada com `constraint-dependencies`         |
+| `py-app/`   | pip              | `requests`, `django`, `urllib3`                                                       |
 
 ### Gerar o pacote `.vsix`
 
@@ -197,6 +199,7 @@ src/
   net.ts             novas tentativas para falhas de rede e mensagens de erro legíveis
   parsers/npm.ts     package.json e package-lock.json
   parsers/pnpm.ts    pnpm-lock.yaml
+  parsers/yarn.ts    yarn.lock (Classic e Berry)
   parsers/uv.ts      pyproject.toml e uv.lock
   parsers/python.ts  requirements*.txt e leitura de specs PEP 508
   version.ts         comparação e extração de versões
@@ -234,34 +237,37 @@ instalar a extensão, a rede pode ainda não estar pronta. Para isso:
 - se só os detalhes de uma vulnerabilidade falharem, ela aparece como "Detalhes indisponíveis" em vez de a
   verificação inteira falhar.
 
-O motivo real aparece na mensagem de erro e no canal **Canary** do painel *Output*:
+O motivo real aparece na mensagem de erro e no canal **Canary** do painel _Output_:
 
-| Mensagem | Causa provável |
-|---|---|
-| não foi possível resolver api.osv.dev (DNS) | sem internet, rede ainda iniciando ou DNS do WSL |
-| tempo esgotado / conexão interrompida | rede instável ou lenta |
-| conexão recusada | firewall ou proxy bloqueando |
-| certificado TLS inválido | proxy corporativo inspecionando HTTPS; configure o certificado da empresa no sistema ou em `NODE_EXTRA_CA_CERTS` |
-| HTTP 429 | muitas requisições em pouco tempo; aguarde alguns instantes |
+| Mensagem                                    | Causa provável                                                                                                   |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| não foi possível resolver api.osv.dev (DNS) | sem internet, rede ainda iniciando ou DNS do WSL                                                                 |
+| tempo esgotado / conexão interrompida       | rede instável ou lenta                                                                                           |
+| conexão recusada                            | firewall ou proxy bloqueando                                                                                     |
+| certificado TLS inválido                    | proxy corporativo inspecionando HTTPS; configure o certificado da empresa no sistema ou em `NODE_EXTRA_CA_CERTS` |
+| HTTP 429                                    | muitas requisições em pouco tempo; aguarde alguns instantes                                                      |
 
 ## Limitações conhecidas
 
 - **Sem lockfile**, a versão é estimada pela faixa declarada (`^4.17.0` vira `4.17.0`); o alerta avisa
   quando isso acontece.
 - **`requirements.txt`:** só `==`, `>=` e `~=` são analisados. Linhas sem versão, `-r` e URLs são ignoradas.
-- **Transitivas no npm e no pnpm** não têm Quick Fix. A correção é atualizar o pacote que as traz ou usar
-  `overrides` (no npm, em `package.json`; no pnpm, em `pnpm-workspace.yaml`).
+- **Transitivas no npm, no pnpm e no yarn** não têm Quick Fix. A correção é atualizar o pacote que as traz ou usar
+  `overrides` (no npm, em `package.json`; no pnpm, em `pnpm-workspace.yaml`) ou `resolutions` (no yarn).
+- **yarn:** o `yarn.lock` não separa produção de desenvolvimento; isso é deduzido dos `package.json`
+  (o que não é alcançável a partir das dependências de produção conta como dev). Se a mesma pasta tiver
+  `yarn.lock` e `package-lock.json`, só o `yarn.lock` é lido.
 - **uv:** `uv lock --upgrade-package` só resolve quando as restrições do `pyproject.toml`, inclusive
   `constraint-dependencies`, permitem a versão corrigida.
 - **Pacotes fora de registry** (git, URL, caminho local) não são consultados.
-- **Ainda não suportados:** `yarn.lock`, `poetry.lock` e `Pipfile.lock`.
+- **Ainda não suportados:** `poetry.lock` e `Pipfile.lock`.
 - A comparação de versões é simplificada: cobre semver e os casos comuns do PEP 440.
 - A versão sugerida às vezes pula para outra versão principal (por exemplo, Django 3.x → 4.2.x) quando a
   série atual não recebeu correção.
 
 ## Próximos passos
 
-- Suporte a `yarn.lock`, `poetry.lock`, `Pipfile.lock`, `go.mod`, `pom.xml` e `Cargo.lock`.
+- Suporte a `poetry.lock`, `Pipfile.lock`, `go.mod`, `pom.xml` e `Cargo.lock`.
 - Quick Fix com `overrides` para transitivas do npm e do pnpm.
 - Cache persistente para funcionar offline.
 - Mostrar a cadeia de dependências das transitivas (quem traz o pacote).

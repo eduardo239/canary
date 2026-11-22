@@ -5,6 +5,7 @@ import { describeError } from './net';
 import { OsvClient } from './osv';
 import { parseNpmProject } from './parsers/npm';
 import { parsePnpmProject } from './parsers/pnpm';
+import { parseYarnProject } from './parsers/yarn';
 import { parseRequirements } from './parsers/python';
 import { parseUvProject } from './parsers/uv';
 import { recommendedVersion, renderReport, ReportFormat } from './report';
@@ -12,7 +13,7 @@ import { compileIgnorePatterns, isSafePyPackageName } from './security';
 import { FindingsTreeProvider, maxSeverity } from './tree';
 import { Dependency, Finding, Severity, SEVERITY_ORDER } from './types';
 
-const MANIFEST_GLOB = '**/{package.json,package-lock.json,pnpm-lock.yaml,requirements*.txt,pyproject.toml,uv.lock}';
+const MANIFEST_GLOB = '**/{package.json,package-lock.json,pnpm-lock.yaml,yarn.lock,requirements*.txt,pyproject.toml,uv.lock}';
 const SOURCE = 'canary';
 
 let diagnostics: vscode.DiagnosticCollection;
@@ -64,6 +65,7 @@ export function activate(context: vscode.ExtensionContext): void {
         { pattern: '**/package.json' },
         { pattern: '**/package-lock.json' },
         { pattern: '**/pnpm-lock.yaml' },
+        { pattern: '**/yarn.lock' },
         { pattern: '**/requirements*.txt' },
         { pattern: '**/pyproject.toml' },
         { pattern: '**/uv.lock' },
@@ -207,6 +209,7 @@ async function collectDependencies(): Promise<Dependency[]> {
   const npmDirs = new Set<string>();
   const npmLockDirs = new Set<string>();
   const pnpmLockDirs = new Set<string>();
+  const yarnLockDirs = new Set<string>();
   const reqFiles: string[] = [];
   const pyprojectDirs = new Set<string>();
   const uvLockDirs = new Set<string>();
@@ -219,6 +222,8 @@ async function collectDependencies(): Promise<Dependency[]> {
       npmLockDirs.add(dir);
     } else if (base === 'pnpm-lock.yaml') {
       pnpmLockDirs.add(dir);
+    } else if (base === 'yarn.lock') {
+      yarnLockDirs.add(dir);
     } else if (base === 'pyproject.toml') {
       pyprojectDirs.add(dir);
     } else if (base === 'uv.lock') {
@@ -234,16 +239,17 @@ async function collectDependencies(): Promise<Dependency[]> {
     return results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : (failures.push(r.reason), [])));
   };
 
-  // 1) projetos JS com lockfile (pnpm tem prioridade se houver os dois)
+  // 1) projetos JS com lockfile (pnpm e yarn têm prioridade sobre o package-lock.json na mesma pasta)
   const jsLocked = await settle([
     ...[...pnpmLockDirs].map((d) => parsePnpmProject(d, { includeDev })),
-    ...[...npmLockDirs].filter((d) => !pnpmLockDirs.has(d)).map((d) => parseNpmProject(d, { includeDev })),
+    ...[...yarnLockDirs].filter((d) => !pnpmLockDirs.has(d)).map((d) => parseYarnProject(d, { includeDev })),
+    ...[...npmLockDirs].filter((d) => !pnpmLockDirs.has(d) && !yarnLockDirs.has(d)).map((d) => parseNpmProject(d, { includeDev })),
   ]);
   // 2) package.json sem lockfile, ignorando membros de workspace já cobertos por um lockfile
   const members = new Set(jsLocked.flatMap((r) => r.members));
   const jsLoose = await settle(
     [...npmDirs]
-      .filter((d) => !npmLockDirs.has(d) && !pnpmLockDirs.has(d) && !members.has(d))
+      .filter((d) => !npmLockDirs.has(d) && !pnpmLockDirs.has(d) && !yarnLockDirs.has(d) && !members.has(d))
       .map((d) => parseNpmProject(d, { includeDev })),
   );
 
@@ -420,6 +426,7 @@ function upgradeAction(doc: vscode.TextDocument, finding: Finding, diag: vscode.
     `Atualizar ${dep.name} para ${replacement}` +
     (dep.manager === 'uv' ? ' no pyproject.toml (depois rode "uv lock")' : '') +
     (dep.manager === 'pnpm' ? ' no package.json (depois rode "pnpm install")' : '') +
+    (dep.manager === 'yarn' ? ' no package.json (depois rode "yarn install")' : '') +
     (dep.manager === 'npm' ? ' no package.json (depois rode "npm install")' : '') +
     (unfixed ? ` (${unfixed} vulnerabilidade(s) continuam sem correção)` : '');
   const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);

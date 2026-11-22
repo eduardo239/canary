@@ -1,7 +1,7 @@
 export type Ecosystem = 'npm' | 'PyPI';
 
 /** Ferramenta que gerencia a dependência (define como corrigir). */
-export type Manager = 'npm' | 'pnpm' | 'pip' | 'uv';
+export type Manager = 'npm' | 'pnpm' | 'yarn' | 'pip' | 'uv';
 
 export type Severity = 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW' | 'UNKNOWN';
 

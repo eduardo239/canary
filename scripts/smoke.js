@@ -2,6 +2,7 @@
 const path = require('path');
 const { parseNpmProject } = require('../out/parsers/npm');
 const { parsePnpmProject } = require('../out/parsers/pnpm');
+const { parseYarnProject } = require('../out/parsers/yarn');
 const { parseRequirements } = require('../out/parsers/python');
 const { parseUvProject } = require('../out/parsers/uv');
 const { OsvClient } = require('../out/osv');
@@ -11,6 +12,7 @@ const { OsvClient } = require('../out/osv');
   const deps = [
     ...(await parseNpmProject(path.join(root, 'node-app'), { includeDev: true })).dependencies,
     ...(await parsePnpmProject(path.join(root, 'pnpm-app'), { includeDev: true })).dependencies,
+    ...(await parseYarnProject(path.join(root, 'yarn-app'), { includeDev: true })).dependencies,
     ...(await parseRequirements(path.join(root, 'py-app', 'requirements.txt'))),
     ...(await parseUvProject(path.join(root, 'uv-app'), { includeDev: true })),
   ];

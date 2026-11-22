@@ -1,7 +1,7 @@
 {
   "name": "canary9",
   "displayName": "Canary9",
-  "description": "Alerta precoce de vulnerabilidades: analisa as dependências do workspace (npm, pnpm, pip e uv) usando a base OSV.dev.",
+  "description": "Alerta precoce de vulnerabilidades: analisa as dependências do workspace (npm, pnpm, yarn, pip e uv) usando a base OSV.dev.",
   "version": "0.3.0",
   "publisher": "eduardo239",
   "repository": {
@@ -39,7 +39,8 @@
     "python",
     "cve",
     "uv",
-    "pnpm"
+    "pnpm",
+    "yarn"
   ],
   "main": "./out/extension.js",
   "activationEvents": [
@@ -47,7 +48,8 @@
     "workspaceContains:**/requirements*.txt",
     "workspaceContains:**/pyproject.toml",
     "workspaceContains:**/uv.lock",
-    "workspaceContains:**/pnpm-lock.yaml"
+    "workspaceContains:**/pnpm-lock.yaml",
+    "workspaceContains:**/yarn.lock"
   ],
   "contributes": {
     "commands": [
@@ -147,7 +149,7 @@
         "canary.scanOnChange": {
           "type": "boolean",
           "default": true,
-          "description": "Verifica novamente quando manifestos ou lockfiles mudam (package.json, package-lock.json, pnpm-lock.yaml, requirements*.txt, pyproject.toml, uv.lock)."
+          "description": "Verifica novamente quando manifestos ou lockfiles mudam (package.json, package-lock.json, pnpm-lock.yaml, yarn.lock, requirements*.txt, pyproject.toml, uv.lock)."
         },
         "canary.includeDevDependencies": {
           "type": "boolean",
