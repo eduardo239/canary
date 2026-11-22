@@ -50,6 +50,20 @@ Python projects that follow PEP 621 without a `uv.lock` (hatch, pdm, setuptools)
   always appears; on automatic ones, only when a new vulnerable package shows up.
 - **Exportable report** in Markdown, CSV or JSON (see below).
 
+## Screenshots
+
+**Quick Fix** on a vulnerable dependency: bump to the lowest fixed version, or open any of its advisories.
+
+![Quick Fix menu on the lodash dependency in package.json, offering to update to 4.18.0 and to open each advisory](media/canary9fix.png)
+
+**Side panel and export:** vulnerable packages sorted by severity, and the format picker for the report.
+
+![Canary side panel listing vulnerable packages, with the report format picker (Markdown, CSV, JSON) open](media/canary9export.png)
+
+**Markdown report** previewed in VS Code, with the recommended upgrade for each package.
+
+![Markdown report preview showing a table of packages, current versions, recommended upgrades and severities](media/canary9md.png)
+
 ## Vulnerability report
 
 To export, use the **Export report** button in the notification, the export icon at the top of the Canary
